@@ -189,6 +189,35 @@ test('ready handshake binds playback and resolver ownership before native restor
     assert.equal(r.received('lampaLifecycle').filter(x => x.status === 'ready').length, 1);
 });
 
+test('late native-managed app:ready listener initializes Radio Record style plugin', async () => {
+    const r = runtime();
+    const owner = 'https://plugins.example/radio-record.js';
+    let readyCount = 0;
+    r.context.__ilampaExecutingPluginURL = owner;
+    r.listener.follow('app', function(event) {
+        if (event.type !== 'ready') return;
+        readyCount++;
+        r.context.Lampa.Component.add('radiovera', function() {});
+    });
+    r.context.__ilampaExecutingPluginURL = null;
+    await flush();
+    assert.equal(readyCount, 1,
+        'Late plugin subscription must get readiness once despite missing original event');
+    const registrations = r.received('lampaComponentRegistered')
+        .filter(item => item.name === 'radiovera');
+    assert.equal(registrations.length, 1);
+    assert.equal(registrations[0].pluginUrl, owner,
+        'Late initialization must retain the originating plugin owner');
+});
+
+test('late app:ready replay never touches unowned core listeners', async () => {
+    const r = runtime();
+    let count = 0;
+    r.listener.follow('app', () => count++);
+    await flush();
+    assert.equal(count, 0, 'Only native-managed plugin subscriptions receive synthetic readiness');
+});
+
 test('pre-ready search is structured, queues no retry, and becomes ready only on real ready state', () => {
     const r = runtime({ ready: false });
     r.listener.send('app', { type: 'ready' });

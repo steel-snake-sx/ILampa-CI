@@ -650,6 +650,44 @@
             }, 100);
         },
 
+        // Native-managed plugins execute after Lampa's original app:ready
+        // event. Older extensions (e.g. Radio Record) subscribe to that event
+        // without checking window.appready, so their menus never initialize.
+        // Replay readiness only to the managed plugin's *new* subscription.
+        // Existing core listeners are left untouched.
+        attachLatePluginReadyHook: function () {
+            if (!Lampa.Listener || typeof Lampa.Listener.follow !== 'function') return;
+            var bus = Lampa.Listener;
+            var original = bus.follow;
+            if (original.__ilampaLateReadyHook) return;
+            function follow(eventName, callback) {
+                var result = original.apply(this, arguments);
+                var owner = typeof window.__ilampaExecutingPluginURL === 'string' ?
+                    window.__ilampaExecutingPluginURL : '';
+                if (eventName === 'app' && typeof callback === 'function' && owner &&
+                    window.__ilampaNativeManaged === true && window.appready === true &&
+                    window.LampaNativeBridge && window.LampaNativeBridge.isAppReadyReported) {
+                    var dispatch = function () {
+                        if (window.__ilampaGeneration !== generation ||
+                            window.__ilampaDocumentToken !== documentToken ||
+                            window.appready !== true) return;
+                        var previous = window.__ilampaExecutingPluginURL;
+                        window.__ilampaExecutingPluginURL = owner;
+                        try { callback({ type: 'ready' }); }
+                        catch (e) { window.LampaNativeBridge.log('error', 'Late app-ready plugin callback failed'); }
+                        finally { window.__ilampaExecutingPluginURL = previous; }
+                    };
+                    // Do not invoke inside follow(): plugins may define variables
+                    // immediately after registering their ready callback.
+                    if (typeof queueMicrotask === 'function') queueMicrotask(dispatch);
+                    else Promise.resolve().then(dispatch);
+                }
+                return result;
+            }
+            follow.__ilampaLateReadyHook = true;
+            bus.follow = follow;
+        },
+
         notifyAppReady: function () {
             if (this.isAppReadyReported || window.appready !== true || typeof Lampa === 'undefined' ||
                 !Lampa.Plugins || !Lampa.Player || !Lampa.Player.listener ||
@@ -661,6 +699,7 @@
             this.attachOnlineModTemplateHook();
             this.bindPlayerListener();
             if (!this.attachComponentHook()) return;
+            this.attachLatePluginReadyHook();
             this.isAppReadyReported = true;
             this.log('info', 'Lampa runtime appready: true, DOM ready, jQuery active');
             post('lampaLifecycle', {
