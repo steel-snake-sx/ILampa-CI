@@ -25,10 +25,12 @@ final class PluginUIProbe {
             let status: String
             if !confirmedMissing.isEmpty {
                 status = "Нативное действие: ошибка подтверждена"
+            } else if comp.instantiationSuccess {
+                status = "WebKit: интерфейс создан, нажатия и действия ещё не проверены"
             } else if comp.hasNativeRenderer {
                 status = "Нативный рендерер заявлен; работа не проверена"
             } else {
-                status = "Интерфейс не проверен; может требовать WebKit"
+                status = "Интерфейс не создан в тестовом контексте; требуется проверка в Lampa"
             }
 
             components.append(PluginLabUIComponentInfo(

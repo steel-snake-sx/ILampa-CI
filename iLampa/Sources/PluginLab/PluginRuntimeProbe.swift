@@ -318,8 +318,24 @@ final class PluginRuntimeProbe: NSObject, WKScriptMessageHandler, WKNavigationDe
             ))
         }
 
-        // Allow microtasks and DOM mutations to propagate
+        // Allow microtasks and DOM mutations to propagate. Then actually
+        // instantiate registered components in this isolated WebKit document,
+        // inspect their detached UI, but never trigger a click or play().
         try? await Task.sleep(nanoseconds: 300_000_000)
+        do {
+            _ = try await evaluateBounded(
+                "window.__pluginLab.probeRegisteredComponentUI();",
+                webView: wv
+            )
+        } catch {
+            // WebKit probe timeout is a diagnostic limitation, not evidence
+            // that the third-party plugin itself failed.
+            collectedEvents.append(PluginLabTimelineEvent(
+                stage: "probingUI", category: "[UIProbe]",
+                message: "UI construction probe unavailable: \(error.localizedDescription)",
+                level: "WARN"
+            ))
+        }
 
         // Retrieve full report from JS probe
         let reportScript = """

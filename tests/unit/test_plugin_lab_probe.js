@@ -175,4 +175,38 @@ const probeResult = globalObj.__pluginLab.probeSetting('test_param', 'val123');
 assert.equal(probeResult.success, true);
 assert.equal(probeResult.restoredValue, undefined);
 
+// The opt-in UI phase must construct an actual plugin UI, not only count
+// Component.add registrations. No start(), click() or native playback occurs.
+globalObj.__pluginLab.beginPlugin('bundled://plugins/ui-fixture.js');
+globalObj.__ilampaExecutingPluginURL = 'bundled://plugins/ui-fixture.js';
+let uiCreateCalls = 0;
+function ProbeFixtureComponent() {
+    this.create = function () {
+        uiCreateCalls++;
+        const makeRow = n => ({
+            nodeType: 1, tagName: 'DIV', className: 'selector',
+            textContent: 'Source ' + n,
+            getAttribute: () => null
+        });
+        return {
+            nodeType: 1, tagName: 'DIV', className: 'source-list',
+            textContent: '', getAttribute: () => null,
+            querySelectorAll: () => [makeRow(1), makeRow(2), makeRow(3)]
+        };
+    };
+}
+globalObj.Lampa.Component.add('functional_fixture', ProbeFixtureComponent);
+globalObj.__ilampaExecutingPluginURL = null;
+globalObj.__pluginLab.endPlugin();
+assert.equal(uiCreateCalls, 0, 'Registration alone must not instantiate a plugin');
+assert.equal(globalObj.__pluginLab.probeRegisteredComponentUI(), 1);
+const uiReport = globalObj.__pluginLab.getReport();
+assert.equal(uiCreateCalls, 1, 'Behavioral probe must call a real create()');
+assert.equal(uiReport.registeredComponents[0].instantiationSuccess, true);
+assert.equal(uiReport.domAdditions.length, 3, 'Must report three real selector rows');
+assert.ok(uiReport.events.some(e => e.category === '[ComponentUIProbe]' && e.level === 'SUCCESS'));
+assert.equal(persistedStorage.account_user, 'real-user-value', 'Probe must preserve user storage');
+globalObj.__pluginLab.clear();
+assert.equal(globalObj.__pluginLab.getReport().registeredComponents.length, 0);
+
 console.log('All Plugin Lab probe assertions passed successfully!');

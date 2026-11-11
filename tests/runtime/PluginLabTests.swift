@@ -39,6 +39,32 @@ final class PluginLabTests: XCTestCase {
         }, "Shikimori should be diagnosed from the publisher's current script path")
     }
 
+    func testPluginLabConstructsActualBundledSourceRowsInIsolatedWebKit() async throws {
+        let probe = PluginRuntimeProbe(timeoutSeconds: 20)
+        defer { probe.teardown() }
+        try await probe.prepareRuntime()
+
+        let bundle = Bundle.main
+        let scriptURL = try XCTUnwrap(
+            bundle.url(forResource: "sample_source_plugin", withExtension: "js", subdirectory: "plugins") ??
+            bundle.url(forResource: "sample_source_plugin", withExtension: "js")
+        )
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+        let raw = try await probe.evaluatePlugin(
+            script: script, url: "bundled://plugins/sample_source_plugin.js"
+        )
+        let component = try XCTUnwrap(raw.registeredComponents.first { $0.name == "sample_source" })
+        XCTAssertTrue(component.instantiationSuccess,
+            "PluginLab must invoke the plugin constructor and create() in real WebKit")
+        XCTAssertGreaterThanOrEqual(raw.domAdditions.filter {
+            $0.className.contains("selector")
+        }.count, 3, "A real source plugin must create selectable stream rows")
+        XCTAssertTrue(raw.events.contains {
+            $0["category"] == "[ComponentUIProbe]" && $0["level"] == "SUCCESS"
+        })
+        // This is observed UI construction, not a trusted user click or playback PASS.
+    }
+
     func testStableIdGeneration() {
         let id1 = PluginLabItem.makeStableId(url: "https://tsynik.github.io/lampa/e.js", name: "e.js (Меню выхода)")
         XCTAssertFalse(id1.isEmpty)

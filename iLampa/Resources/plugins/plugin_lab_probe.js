@@ -12,6 +12,8 @@
     var events = [];
     var jsErrors = [];
     var registeredComponents = [];
+    var componentFactories = Object.create(null);
+    var probedPluginURL = null;
     var registeredSources = [];
     var registeredSettings = [];
     var domAdditions = [];
@@ -151,7 +153,12 @@
             recordEvent('INFO', '[Component.add]', 'Constructor deliberately not invoked: ' + compName);
         }
 
-        if (isPluginCall()) registeredComponents.push(probe);
+        if (isPluginCall()) {
+            registeredComponents.push(probe);
+            if (typeof componentClass === 'function' && !probe.isPlatform) {
+                componentFactories[compName] = componentClass;
+            }
+        }
         recordEvent('INFO', '[Component.add]', 'Component registered: ' + compName, {
             name: compName,
             isPlatform: String(probe.isPlatform),
@@ -379,10 +386,92 @@
         beginPlugin: function (url) {
             this.clear();
             activePluginURL = String(url || '');
+            probedPluginURL = activePluginURL;
             storageSandboxActive = true;
         },
         endPlugin: function () {
             activePluginURL = null;
+        },
+
+        // Optional observational smoke test after script registration, inside
+        // PluginLab's isolated, non-persistent WKWebView. Constructors and
+        // create() are genuinely invoked: no synthetic registration PASS.
+        // Never start(), click(), or play media automatically. A failed
+        // synthetic movie context is reported as unverified, not a real
+        // production compatibility failure.
+        probeRegisteredComponentUI: function () {
+            var previousOwner = activePluginURL;
+            var previousExecuting = global.__ilampaExecutingPluginURL;
+            var inspected = 0;
+            activePluginURL = probedPluginURL;
+            global.__ilampaExecutingPluginURL = probedPluginURL;
+            try {
+                registeredComponents.forEach(function (probe) {
+                    if (inspected >= 6 || probe.isPlatform || !componentFactories[probe.name]) return;
+                    inspected++;
+                    var component = null;
+                    try {
+                        var card = {
+                            id: 550, title: 'PluginLab reference movie',
+                            original_title: 'PluginLab reference movie',
+                            source: 'tmdb', media_type: 'movie'
+                        };
+                        component = new componentFactories[probe.name]({
+                            title: card.title, source: 'tmdb',
+                            movie: card, card: card, mediaType: 'movie',
+                            page: 1, url: ''
+                        });
+                        if (!component || typeof component.create !== 'function') {
+                            recordEvent('INFO', '[ComponentUIProbe]',
+                                'No create() available for ' + probe.name);
+                            return;
+                        }
+                        var ui = component.create();
+                        var root = ui && ui.nodeType === 1 ? ui
+                            : (ui && ui[0] && ui[0].nodeType === 1 ? ui[0]
+                            : (ui && typeof ui.get === 'function' ? ui.get(0) : null));
+                        if (!root || root.nodeType !== 1) {
+                            recordEvent('INFO', '[ComponentUIProbe]',
+                                'Component ' + probe.name + ' returned no inspectable DOM');
+                            return;
+                        }
+                        var selectors = root.querySelectorAll
+                            ? root.querySelectorAll('.selector,[data-action]') : [];
+                        var nodes = [];
+                        if (root.matches && root.matches('.selector,[data-action]')) nodes.push(root);
+                        for (var i = 0; i < selectors.length && nodes.length < 12; i++) nodes.push(selectors[i]);
+                        if (!nodes.length) nodes.push(root);
+                        nodes.forEach(function (node) {
+                            domAdditions.push({
+                                tag: String(node.tagName || '').toLowerCase(),
+                                action: node.getAttribute ? node.getAttribute('data-action') : null,
+                                className: String(node.className || ''),
+                                text: String(node.textContent || '').trim().substring(0, 100)
+                            });
+                        });
+                        probe.instantiationSuccess = true;
+                        recordEvent('SUCCESS', '[ComponentUIProbe]',
+                            'Constructed real WebKit UI for ' + probe.name + '; DOM nodes=' + nodes.length,
+                            { component: probe.name, nodes: String(nodes.length), clicked: 'false' });
+                    } catch (error) {
+                        // A generic test card cannot satisfy every real plugin's
+                        // source/context dependency. Keep it unverified rather
+                        // than calling that an extension failure.
+                        recordEvent('WARN', '[ComponentUIProbe]',
+                            'Synthetic UI context not sufficient for ' + probe.name,
+                            { component: probe.name,
+                              reason: String(error && error.message || error).substring(0, 240) });
+                    } finally {
+                        try {
+                            if (component && typeof component.destroy === 'function') component.destroy();
+                        } catch (_) {}
+                    }
+                });
+            } finally {
+                global.__ilampaExecutingPluginURL = previousExecuting;
+                activePluginURL = previousOwner;
+            }
+            return inspected;
         },
         getReport: function () {
             return {
@@ -428,6 +517,8 @@
             events = [];
             jsErrors = [];
             registeredComponents = [];
+            componentFactories = Object.create(null);
+            probedPluginURL = null;
             registeredSources = [];
             registeredSettings = [];
             domAdditions = [];
