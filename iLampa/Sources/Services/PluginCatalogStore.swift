@@ -65,8 +65,25 @@ final class PluginCatalogStore: ObservableObject {
             }
             return (data, response)
         }
-        if let data = defaults.data(forKey: Self.cacheKey) {
-            snapshot = try? JSONDecoder().decode(Snapshot.self, from: data)
+        if let data = defaults.data(forKey: Self.cacheKey),
+           let cached = try? JSONDecoder().decode(Snapshot.self, from: data) {
+            // The URL remapping is not only a network refresh concern:
+            // users who already cached extensions.json must not keep
+            // receiving its retired Shikimori HTTP 404 entry indefinitely.
+            var canonical: [PluginCatalogEntry] = []
+            var seen = Set<String>()
+            for entry in cached.entries {
+                let url = Self.knownMovedScripts[entry.sourceURL.absoluteString]
+                    .flatMap(PluginCatalogEntry.normalizedHTTPSURL) ?? entry.sourceURL
+                guard seen.insert(url.absoluteString).inserted else { continue }
+                canonical.append(PluginCatalogEntry(
+                    sourceURL: url, title: entry.title, author: entry.author,
+                    description: entry.description, category: entry.category,
+                    provenance: entry.provenance, compatibility: .notTested
+                ))
+            }
+            snapshot = Snapshot(entries: canonical,
+                unsupportedCount: cached.unsupportedCount, fetchedAt: cached.fetchedAt)
         }
     }
 

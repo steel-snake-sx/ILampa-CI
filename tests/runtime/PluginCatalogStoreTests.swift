@@ -38,6 +38,28 @@ final class PluginCatalogStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.entries[1].sourceURL.absoluteString, "https://example.test/plugin.js")
     }
 
+    func testPreviouslyCachedShikimoriEntryIsRemappedWithoutNetwork() throws {
+        let suite = "CachedShikimori.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        // Cache must be treated as source data, not a guarantee that the
+        // plugin author's historical URL is still reachable.
+        let cached = PluginCatalogStore.Snapshot(entries: [
+            PluginCatalogEntry(
+                sourceURL: try XCTUnwrap(URL(string: "https://lampame.github.io/main/shikimori.js")),
+                title: "Shikimori catalog", author: "Community",
+                description: nil, category: "Anime", provenance: [], compatibility: .partial)
+        ], unsupportedCount: 0, fetchedAt: Date())
+        defaults.set(try JSONEncoder().encode(cached),
+            forKey: "ilampa_lampaplugins_catalog_v1")
+        let store = PluginCatalogStore(defaults: defaults, fetch: { _ in
+            throw URLError(.notConnectedToInternet)
+        })
+        XCTAssertEqual(store.snapshot?.entries.first?.sourceURL.absoluteString,
+            "https://lampame.github.io/main/Shikimori/Shikimori.js")
+        XCTAssertEqual(store.snapshot?.entries.first?.compatibility, .notTested)
+    }
+
     func testEmptyOrOversizedRegistryFailsClosed() {
         XCTAssertThrowsError(try PluginCatalogStore.parse(Data("{\"results\":[]}".utf8)))
         XCTAssertThrowsError(try PluginCatalogStore.parse(Data(repeating: 0, count: 2_000_001)))
