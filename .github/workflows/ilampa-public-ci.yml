@@ -41,8 +41,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned ByLampa core
-        run: python3 scripts/prepare-bylampa-native.py
       - name: Execute real local preflight checks
         shell: bash
         run: |
@@ -55,6 +53,10 @@ jobs:
           node tests/unit/test_bridge_runtime.js
           node tests/unit/test_plugin_lab_probe.js
           python3 tests/unit/test_plugin_lab_archive.py
+      - name: Install pinned ByLampa core
+        run: python3 scripts/prepare-bylampa-native.py
+      - name: Check selected candidate runtime syntax
+        run: node --check iLampa/Resources/www/app.min.js
 
   simulator:
     needs: preflight
