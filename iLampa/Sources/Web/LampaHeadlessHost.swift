@@ -80,6 +80,7 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
     private var headlessSelectionRequestId: UUID?
 
     var onPlayRequest: ((PlayPayload) -> Void)? = nil
+    var onPlaylistUpdate: ((String, [PlaylistItem]) -> Void)? = nil
 
     var currentGeneration: Int {
         lifecycle.generation
@@ -195,7 +196,7 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
         }
 
         let userContentController = WKUserContentController()
-        for name in ["lampaNative", "lampaSelection", "lampaLog", "lampaError", "lampaMetrics", "lampaPluginsList", "lampaLifecycle", "lampaHeartbeat", "lampaComponentRegistered", "lampaSourcesDiscovered", "lampaMetadata", "lampaSettings"] {
+        for name in ["lampaNative", "lampaSelection", "lampaLog", "lampaError", "lampaMetrics", "lampaPluginsList", "lampaLifecycle", "lampaHeartbeat", "lampaComponentRegistered", "lampaSourcesDiscovered", "lampaMetadata", "lampaSettings", "lampaPlaylist"] {
             userContentController.add(WeakRuntimeMessageHandler(self), name: name)
         }
 
@@ -529,6 +530,34 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
             message: "Explicit playback authorized for context: \(context.contextKey)",
             level: .info
         )
+    }
+
+    /// Resolve a playlist callback only inside its original WebKit document and playback session.
+    /// WKWebView's async JS API waits for the plugin callback without blocking the main actor.
+    func resolvePlaylistItem(_ item: PlaylistItem, for payload: PlayPayload) async throws -> String {
+        guard let requestId = payload.requestId, let itemId = item.itemId, item.deferred,
+              let view = webView, let active = lastInterceptedPayload,
+              active.requestId == requestId, active.playlistId == payload.playlistId,
+              isAppReady else { throw CancellationError() }
+        let generation = currentGeneration
+        let token = documentToken
+        let value = try await view.callAsyncJavaScript("""
+            const bridge = window.LampaNativeBridge;
+            if (!bridge || typeof bridge.resolvePlaylistItem !== 'function')
+                return { success: false, error: 'resolver-unavailable' };
+            return await bridge.resolvePlaylistItem(requestId, itemId);
+            """, arguments: ["requestId": requestId, "itemId": itemId],
+            in: nil, contentWorld: .page)
+        try Task.checkCancellation()
+        guard currentGeneration == generation, documentToken == token, isAppReady,
+              lastInterceptedPayload?.requestId == requestId,
+              let response = value as? [String: Any],
+              response["success"] as? Bool == true,
+              let url = response["url"] as? String else {
+            throw NSError(domain: "ILampaDeferredPlaylist", code: 409,
+                          userInfo: [NSLocalizedDescriptionKey: "Исходный плагин не разрешил поток серии"])
+        }
+        return try SourceManager.shared.sanitizeStreamUrl(url).absoluteString
     }
 
     func clearActiveMediaContext() {
@@ -1082,6 +1111,20 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
                                       createdAt: Date(), season: envelope["season"] as? Int,
                                       episode: envelope["episode"] as? Int, audio: envelope["audio"] as? String),
                                 isVisible: currentAttachmentMode == .attachedVisible)
+            return
+        }
+
+        if message.name == "lampaPlaylist", let body = message.body as? [String: Any],
+           let requestId = body["requestId"] as? String,
+           let playlistId = body["playlistId"] as? String,
+           let items = body["playlist"],
+           var active = lastInterceptedPayload,
+           active.requestId == requestId, active.playlistId == playlistId,
+           let data = try? JSONSerialization.data(withJSONObject: items),
+           let playlist = try? JSONDecoder().decode([PlaylistItem].self, from: data) {
+            active.playlist = playlist
+            lastInterceptedPayload = active
+            onPlaylistUpdate?(requestId, playlist)
             return
         }
 
