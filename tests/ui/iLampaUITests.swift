@@ -538,6 +538,12 @@ final class iLampaUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [revealed], timeout: 5), .completed,
                        "Tapping the movie must reveal the in-video settings control")
+        // A second tap must extend visibility instead of toggling the custom
+        // toolbar off; AVKit and SwiftUI can both observe the same real touch.
+        app.windows.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).tap()
+        XCTAssertTrue(settings.isHittable, "Repeated video tap must not hide settings")
     }
 
     func testPlayerSeekingPauseResumeAndReopen() throws {

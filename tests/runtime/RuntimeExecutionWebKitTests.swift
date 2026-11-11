@@ -13,6 +13,7 @@ final class RuntimeExecutionWebKitTests: XCTestCase, WKNavigationDelegate, WKUID
     private var promptCount = 0
     private var committedAtPrompt: (() -> Void)?
     private var previousKeyWindow: UIWindow?
+    private var fixtureDirectory: URL?
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loaded?.fulfill() }
 
@@ -54,9 +55,19 @@ final class RuntimeExecutionWebKitTests: XCTestCase, WKNavigationDelegate, WKUID
             webView.isUserInteractionEnabled = false
         }
         window.makeKeyAndVisible()
+        // Match the file-backed production WKWebView document instead of an
+        // opaque remote loadHTMLString base URL. The latter can reject storage
+        // with SecurityError on iOS 18 simulator runners.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ilampa-webkit-fixture-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        fixtureDirectory = directory
+        let fixtureURL = directory.appendingPathComponent("index.html")
+        try "<html><body>Execution fixture</body></html>"
+            .write(to: fixtureURL, atomically: true, encoding: .utf8)
         loaded = expectation(description: "fixture document loaded")
-        webView.loadHTMLString("<html><body>Execution fixture</body></html>", baseURL: URL(string: "https://fixture.invalid/"))
-        await fulfillment(of: [try XCTUnwrap(loaded)], timeout: 10)
+        webView.loadFileURL(fixtureURL, allowingReadAccessTo: directory)
+        await fulfillment(of: [try XCTUnwrap(loaded)], timeout: 25)
         loaded = nil
         let path = try XCTUnwrap(Bundle.main.path(forResource: "lampa_bridge", ofType: "js"))
         let bridge = try String(contentsOfFile: path, encoding: .utf8)
@@ -88,6 +99,10 @@ final class RuntimeExecutionWebKitTests: XCTestCase, WKNavigationDelegate, WKUID
         window.isHidden = true
         previousKeyWindow?.makeKeyAndVisible()
         previousKeyWindow = nil
+        if let fixtureDirectory {
+            try? FileManager.default.removeItem(at: fixtureDirectory)
+            self.fixtureDirectory = nil
+        }
     }
 
     private func assertRendezvous(mode: WebKitAttachmentMode) async throws {

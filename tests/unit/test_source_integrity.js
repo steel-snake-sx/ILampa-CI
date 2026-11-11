@@ -70,9 +70,11 @@ assert.ok(playerModel.includes('static func chooseNextSource('),
     'Next episode must enforce original provider/voice selection');
 assert.ok(rootView.includes('resolveNextEpisodeFromProvider(for: payload)'),
     'Unknown native playlists must resolve through the current source');
-assert.ok(rootView.includes('togglePlayerActionsOnTap()') &&
+assert.ok(rootView.includes('onControlsInteraction: { showPlayerActionsTemporarily() }') &&
+          rootView.includes('.simultaneousGesture(TapGesture().onEnded { showPlayerActionsTemporarily() })') &&
+          !rootView.includes('togglePlayerActionsOnTap()') &&
           rootView.includes('.seconds(3)') && !rootView.includes('.seconds(7)'),
-    'Custom controls must hide on tap and use bounded visibility');
+    'Every user tap must reveal custom controls even if both AVKit and SwiftUI gestures fire');
 assert.ok(read('iLampa/Sources/Services/ImageNetworkDiagnostics.swift').includes('inspectFailure(of url: URL)'),
     'Artworks must log safe failures when their CDN is unreachable');
 

@@ -111,7 +111,7 @@ struct ContentView: View {
                     onEnded: { handleEpisodeEnded() },
                     onPlaybackError: { diag in self.playbackDiagnosis = diag },
                     onDismiss: { dismissPlayer() },
-                    onControlsInteraction: { togglePlayerActionsOnTap() }
+                    onControlsInteraction: { showPlayerActionsTemporarily() }
                 )
                 .ignoresSafeArea()
                 // UIKit can consume a video tap for its own transport overlay.
@@ -344,17 +344,9 @@ struct ContentView: View {
         }
     }
 
-    /// A second tap hides our toolbar as AVKit hides its transport controls.
-    /// AVKit does not expose a public playback-control visibility observation API.
-    private func togglePlayerActionsOnTap() {
-        if playerActionsVisible {
-            hidePlayerActionsTask?.cancel()
-            hidePlayerActionsTask = nil
-            playerActionsVisible = false
-        } else {
-            showPlayerActionsTemporarily()
-        }
-    }
+    // Every AVKit/SwiftUI video tap refreshes the overlay's short visibility
+    // window. Do not toggle it: both gesture paths can recognize one tap,
+    // otherwise the second callback hides the controls immediately.
 
     private func currentPlaybackPosition(fallback: Double?) -> Double? {
         if let player = PlayerPlaybackController.shared.activePlayer {
