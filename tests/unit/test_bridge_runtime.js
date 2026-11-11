@@ -67,7 +67,7 @@ function runtime(options = {}) {
     const Lampa = {
         Listener: listener,
         Plugins: { get: () => [{ url: 'https://plugins.test/p.js', status: 0 }] },
-        Player: { listener: playerListener, stop() {} },
+        Player: { listener: playerListener, stop() {}, playlist(items) { this.installedPlaylist = items; } },
         Activity: { push(value) { active = value; }, active() { return active; } },
         Component: { get: name => components[name], add(name, value) {
             if (options.rejectComponent === name) throw new Error('registration rejected');
@@ -106,7 +106,7 @@ function runtime(options = {}) {
         webkit: { messageHandlers: {} }
     };
     context.window = context;
-    for (const name of ['lampaSelection', 'lampaNative', 'lampaLifecycle', 'lampaHeartbeat', 'lampaLog',
+    for (const name of ['lampaSelection', 'lampaNative', 'lampaPlaylist', 'lampaLifecycle', 'lampaHeartbeat', 'lampaLog',
         'lampaMetrics', 'lampaError', 'lampaPluginsList', 'lampaComponentRegistered', 'lampaSourcesDiscovered']) {
         context.webkit.messageHandlers[name] = { postMessage(body) { messages.push({ name, body: plain(body) }); } };
     }
@@ -241,6 +241,59 @@ test('unadapted TV components cannot label an unknown selected episode with the 
     r.dispatch(element(), () => r.play({ url: 'https://stream.test/unknown-selected-episode.m3u8' }));
     assert.equal(r.received('lampaSelection').length, 0);
     assert.equal(r.received('lampaNative').length, 0);
+});
+
+test('late OnlineMod playlist retains callback entries and resolves the second episode in its JS session', async () => {
+    const r = runtime(); r.show();
+    r.search({ id: 1399, title: 'Show', mediaType: 'tv',
+        canonicalId: 'urn:media:tmdb:tv:1399', season: 1, episode: 1 });
+    const row = r.onlineModRow({ season: 1, episode: 1, translate_voice: 'Studio Dub' });
+    r.dispatch(row, () => r.play({ url: 'https://stream.test/show-episode-1.m3u8', season: 1, episode: 1 }));
+    const play = r.received('lampaNative')[0];
+    assert.equal(play.runtimeOrigin, 'lampa_core');
+    assert.equal(play.providerId, 'online_mod');
+    assert.equal(play.plugin, 'online_mod');
+    assert.equal(play.playlist, null);
+    const originalCallbackItem = {
+        title: 'Episode 2', season: 1, episode: 2,
+        url(callback) {
+            this.url = 'https://stream.test/show-episode-2-new.m3u8';
+            callback();
+        }
+    };
+    r.context.Lampa.Player.playlist([
+        { title: 'Episode 1', season: 1, episode: 1, url: play.url },
+        originalCallbackItem
+    ]);
+    const updates = r.received('lampaPlaylist');
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].requestId, play.requestId);
+    assert.equal(updates[0].playlist[1].deferred, true);
+    assert.equal(updates[0].playlist[1].url, '');
+    const resolved = await r.bridge.resolvePlaylistItem(play.requestId, updates[0].playlist[1].itemId);
+    assert.deepEqual(plain(resolved), {
+        success: true, url: 'https://stream.test/show-episode-2-new.m3u8'
+    });
+    assert.equal(originalCallbackItem.url, resolved.url);
+});
+
+test('stale deferred stream completion cannot migrate to a newer playback selection', async () => {
+    const r = runtime(); r.show();
+    r.search({ id: 1399, title: 'Show', mediaType: 'tv',
+        canonicalId: 'urn:media:tmdb:tv:1399', season: 1, episode: 1 });
+    const row = r.onlineModRow({ season: 1, episode: 1, translate_voice: 'Studio Dub' });
+    r.dispatch(row, () => r.play({ url: 'https://stream.test/first.m3u8', season: 1, episode: 1 }));
+    const initial = r.received('lampaNative')[0];
+    let lateCallback;
+    const stale = { season: 1, episode: 2, title: 'Episode 2',
+        url(callback) { lateCallback = callback; } };
+    r.context.Lampa.Player.playlist([{ url: initial.url, episode: 1 }, stale]);
+    const itemId = r.received('lampaPlaylist')[0].playlist[1].itemId;
+    const pending = r.bridge.resolvePlaylistItem(initial.requestId, itemId);
+    r.dispatch(row, () => r.play({ url: 'https://stream.test/new-session.m3u8', season: 1, episode: 1 }));
+    stale.url = 'https://stream.test/old-completion.m3u8';
+    lateCallback();
+    assert.deepEqual(plain(await pending), { success: false, error: 'stale-session' });
 });
 
 test('OnlineMod selected episode and voice override initial activity metadata and survive Player.play omission', () => {

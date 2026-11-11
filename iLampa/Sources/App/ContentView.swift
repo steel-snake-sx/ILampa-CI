@@ -235,6 +235,11 @@ struct ContentView: View {
             LampaHeadlessHost.shared.onPlayRequest = { payload in
                 self.startPlayback(payload)
             }
+            LampaHeadlessHost.shared.onPlaylistUpdate = { requestId, playlist in
+                guard var active = self.activePayload, active.requestId == requestId else { return }
+                active.playlist = playlist
+                self.activePayload = active
+            }
             let args = ProcessInfo.processInfo.arguments
             if args.contains("--test-hls") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -388,6 +393,10 @@ struct ContentView: View {
 
     private func switchEpisode(_ item: PlaylistItem) {
         cancelCountdown()
+        if item.deferred, let payload = activePayload {
+            resolveDeferredPlaylistItem(item, from: payload)
+            return
+        }
         nextEpisodeResolutionTask?.cancel()
         nextEpisodeResolutionTask = nil
         isResolvingNextEpisode = false
@@ -471,6 +480,10 @@ struct ContentView: View {
             // No warning for the last episode or when the playlist is unavailable.
             return
         }
+        if nextItem.deferred {
+            resolveDeferredPlaylistItem(nextItem, from: payload)
+            return
+        }
         let playlist = payload.playlist
         var nextPayload = PlayPayload(
             action: "play",
@@ -501,6 +514,42 @@ struct ContentView: View {
         )
         nextPayload.diagnosticActionId = payload.diagnosticActionId
         self.activePayload = nextPayload
+    }
+
+    /// Preserve provider/voice while asking the original JavaScript plugin to resolve
+    /// the exact deferred playlist entry. Never substitute another provider silently.
+    private func resolveDeferredPlaylistItem(_ item: PlaylistItem, from previous: PlayPayload) {
+        guard !isResolvingNextEpisode, item.deferred else { return }
+        nextEpisodeResolutionTask?.cancel()
+        isResolvingNextEpisode = true
+        nextEpisodeUnavailable = false
+        nextEpisodeResolutionTask = Task { @MainActor in
+            do {
+                let url = try await LampaHeadlessHost.shared.resolvePlaylistItem(item, for: previous)
+                guard !Task.isCancelled, activePayload?.requestId == previous.requestId,
+                      activePayload?.url == previous.url,
+                      activePayload?.episode == previous.episode else { return }
+                var next = previous
+                next.url = url
+                next.season = item.seasonNumber ?? previous.season
+                next.episode = item.episodeNumber ?? (previous.episode.map { $0 + 1 })
+                next.time = 0
+                next.duration = item.duration ?? 0
+                next.subtitle = nil
+                next.availableQualities = nil
+                next.availableStudios = nil
+                nextEpisodeResolutionTask = nil
+                isResolvingNextEpisode = false
+                activePayload = next
+            } catch {
+                guard !Task.isCancelled else { return }
+                nextEpisodeResolutionTask = nil
+                isResolvingNextEpisode = false
+                nextEpisodeUnavailable = true
+                DiagnosticsLogManager.shared.log(category: "[Player]",
+                    message: "Deferred playlist resolution failed: \((error as NSError).code)", level: .warning)
+            }
+        }
     }
 
     /// The native source picker does not always provide an episode playlist.
