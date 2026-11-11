@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>iLampa</title>
+
+    <meta name="theme-color" content="#1d1f20">
+    <meta name="referrer" content="never">
+
+    <link rel="stylesheet" href="./vender/scrollbar/jquery.scrollbar.css">
+    <link rel="stylesheet" href="./vender/keypad/style.css">
+    <link rel="stylesheet" href="css/app.css">
+
+    <style>
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left, 0px);
+            --sar: env(safe-area-inset-right, 0px);
+        }
+        html, body {
+            width: 100% !important;
+            height: 100% !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #1d1f20 !important;
+            overflow: hidden !important;
+        }
+        #app {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .head__body {
+            padding-top: calc(0.5em + var(--sat)) !important;
+        }
+        .navigation-bar {
+            padding-bottom: calc(0.8em + var(--sab)) !important;
+        }
+        body.orientation--landscape .wrap__content {
+            padding-left: var(--sal) !important;
+            padding-right: var(--sar) !important;
+        }
+        .simple-keyboard {
+            display: none !important;
+        }
+    </style>
+</head>
+<body style="background: #1d1f20;">
+    <script>
+        window.youtube_lazy_load = true;
+        window.lampa_settings = window.lampa_settings || {};
+        window.lampa_settings.lang_use = false;
+        try {
+            // Disable background screensaver in hybrid WebKit to prevent unprompted video decoding
+            localStorage.setItem('screensaver', 'false');
+            localStorage.setItem('screensaver_type', 'none');
+            if (!localStorage.getItem('language')) {
+                localStorage.setItem('language', 'ru');
+            }
+            if (!localStorage.getItem('tmdb_lang')) {
+                localStorage.setItem('tmdb_lang', 'ru');
+            }
+        } catch(e) {}
+    </script>
+
+    <div class="welcome"></div>
+    <div id="app"></div>
+
+    <div class="no-network hide">
+        <div class="no-network__title">Ошибка</div>
+        <div class="no-network__desc">Не удалось загрузить компонент: <span class="no-network__file"></span></div>
+    </div>
+
+    <script src="./vender/jquery/jquery.js"></script>
+    <script src="./vender/notify/notify.js"></script>
+    <script src="./vender/scrollbar/jquery.scrollbar.js"></script>
+    <script src="./vender/navigator/navigator.js"></script>
+    <script src="./vender/keypad/keypad.js"></script>
+    <script src="./app.min.js"></script>
+</body>
+</html>

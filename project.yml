@@ -1,0 +1,194 @@
+name: iLampa
+options:
+  bundleIdPrefix: com.steelsnake
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    PRODUCT_NAME: "iLampa"
+    PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.ilampa"
+    MARKETING_VERSION: "2.2.1"
+    CURRENT_PROJECT_VERSION: "2020"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    ENABLE_BITCODE: "NO"
+    GENERATE_INFOPLIST_FILE: "NO"
+
+targets:
+  iLampa:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iLampa/Sources
+      - path: iLampa/Resources/lampa_bridge.js
+      - path: iLampa/Resources/plugins
+      - path: iLampa/Resources/www
+        type: folder
+      - path: iLampa/Resources/Assets.xcassets
+      - path: iLampa/Resources/Settings.bundle
+    info:
+      path: iLampa/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: "ru"
+        CFBundleDisplayName: "iLampa"
+        CFBundleName: "iLampa"
+        CFBundleExecutable: "iLampa"
+        CFBundleIdentifier: "com.steelsnake.ilampa"
+        CFBundleShortVersionString: "2.2.1"
+        CFBundleVersion: "2020"
+        ILAMPA_GIT_COMMIT: ""
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - audio
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsArbitraryLoadsForMedia: true
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIViewControllerBasedStatusBarAppearance: false
+    settings:
+      base:
+        PRODUCT_NAME: "iLampa"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.ilampa"
+        ASSETCATALOG_COMPILER_APPICON_NAME: "AppIcon"
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: "AccentColor"
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+
+  AVKitControlHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/avkit-control-host
+    settings:
+      base:
+        PRODUCT_NAME: "AVKitControlHost"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.avkitcontrol"
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+
+  AVKitControlUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/avkit-control-ui
+    dependencies:
+      - target: AVKitControlHost
+    settings:
+      base:
+        PRODUCT_NAME: "AVKitControlUITests"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.avkitcontrol.uitests"
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: "AVKitControlHost"
+
+  AVPlayerControlHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/avplayer-control-host
+    settings:
+      base:
+        PRODUCT_NAME: "AVPlayerControlHost"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.avplayercontrol"
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+
+  AVPlayerControlTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/runtime/PlayerStateIntegrationTests.swift
+    dependencies:
+      - target: AVPlayerControlHost
+    settings:
+      base:
+        PRODUCT_NAME: "AVPlayerControlTests"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.avplayercontrol.tests"
+        GENERATE_INFOPLIST_FILE: "YES"
+
+  iLampaRuntimeTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/runtime
+    dependencies:
+      - target: iLampa
+    settings:
+      base:
+        PRODUCT_NAME: "iLampaRuntimeTests"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.ilampa.runtimetests"
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: "-"
+
+  iLampaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: tests/ui
+    dependencies:
+      - target: iLampa
+    settings:
+      base:
+        PRODUCT_NAME: "iLampaUITests"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.ilampa.uitests"
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: "iLampa"
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: "-"
+
+schemes:
+  AVKitControl:
+    build:
+      targets:
+        AVKitControlHost: all
+        AVKitControlUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: AVKitControlUITests
+  AVPlayerControl:
+    build:
+      targets:
+        AVPlayerControlHost: all
+        AVPlayerControlTests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: AVPlayerControlTests
+  iLampa:
+    build:
+      targets:
+        iLampa: all
+        iLampaRuntimeTests: [test]
+        iLampaUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: iLampaRuntimeTests
+        - name: iLampaUITests

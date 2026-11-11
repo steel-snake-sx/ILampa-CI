@@ -1,0 +1,160 @@
+name: ILampa Public macOS Lab (XCTest + Unsigned IPA)
+
+# Standard GitHub-hosted macOS runners are free for PUBLIC repositories.
+# Private repositories are deliberately skipped unless manually opted in.
+on:
+  push:
+    branches:
+      - 'main'
+      - 'ci/public-macos-lab'
+      - 'experiment/**'
+      - 'integration/2.3.0-*'
+    paths:
+      - 'iLampa/**'
+      - 'project.yml'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/ilampa-public-ci.yml'
+  workflow_dispatch:
+    inputs:
+      allow_private:
+        description: 'Allow consuming private-repository Actions minutes'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ilampa-public-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    if: ${{ github.event.repository.private == false || (github.event_name == 'workflow_dispatch' && inputs.allow_private) }}
+    name: JS contracts and bridge diagnostics
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute real local preflight checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check iLampa/Resources/lampa_bridge.js
+          node --check iLampa/Resources/www/app.min.js
+          node --check iLampa/Resources/plugins/online_mod.js
+          node tests/unit/test_suite_master.js
+          node tests/unit/test_source_integrity.js
+          node tests/unit/test_bridge_runtime.js
+          node tests/unit/test_plugin_lab_probe.js
+          python3 tests/unit/test_plugin_lab_archive.py
+
+  simulator:
+    needs: preflight
+    name: iOS simulator XCTest (iOS 18)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          brew install xcodegen
+          xcodegen generate
+      - name: Select available iOS 18 iPhone simulator
+        id: sim
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIM_ID=$(python3 - <<'PY'
+          import json, subprocess
+          payload = json.loads(subprocess.check_output(['xcrun','simctl','list','devices','available','-j']))
+          matches = [(runtime, device) for runtime, devices in payload.get('devices', {}).items()
+                     for device in devices
+                     if 'iOS-18-' in runtime and device.get('isAvailable', False)
+                     and device.get('name','').startswith('iPhone')]
+          if not matches:
+              raise SystemExit('No available iOS 18 iPhone simulator on this runner')
+          matches.sort(key=lambda v: v[0], reverse=True)
+          print(matches[0][1]['udid'])
+          PY
+          )
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$SIM_ID" || true
+          xcrun simctl bootstatus "$SIM_ID" -b
+      - name: Run native runtime and UI XCTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild test \
+            -project iLampa.xcodeproj \
+            -scheme iLampa \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.simulator_id }}" \
+            -resultBundlePath build/ios-lab-tests.xcresult \
+            -only-testing:iLampaRuntimeTests \
+            -only-testing:iLampaUITests \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+      - name: Archive XCTest evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -d build/ios-lab-tests.xcresult ]; then
+            ditto -c -k --sequesterRsrc --keepParent build/ios-lab-tests.xcresult build/ios-lab-tests.xcresult.zip
+          fi
+      - name: Upload XCTest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xctest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/ios-lab-tests.xcresult.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  unsigned-ipa:
+    needs: preflight
+    name: Compile and verify unsigned arm64 IPA
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+      ILAMPA_RELEASE_MINIMUM_BUILD: '3000'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Install XcodeGen and build unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          bash scripts/device-diagnostic-package.sh
+      - name: Verify IPA and compute checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/device-diagnostic/iLampa-unsigned.ipa
+          shasum -a 256 build/device-diagnostic/iLampa-unsigned.ipa | tee build/device-diagnostic/ipa.sha256
+          git rev-parse HEAD | tee build/device-diagnostic/commit.txt
+      - name: Upload verified IPA and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ilampa-ipa-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/device-diagnostic/iLampa-unsigned.ipa
+            build/device-diagnostic/ipa.sha256
+            build/device-diagnostic/commit.txt
+            build/device-diagnostic/verification.txt
+            build/device-diagnostic/architecture.txt
+          if-no-files-found: error
+          retention-days: 7

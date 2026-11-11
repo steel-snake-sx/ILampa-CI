@@ -1,0 +1,251 @@
+workflows:
+  ilampa-native-blockers:
+    name: Five native blockers and independent AVPlayer control (new authorization only)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: "26.6"
+    scripts:
+      - name: Verify source, generate project and run eight focused tests (no retries or IPA)
+        script: |
+          bash scripts/native-blockers-ci.sh
+    artifacts:
+      - build/native-blockers/*.log
+      - build/native-blockers/*.zip
+      - build/native-blockers/*.json
+  ilampa-native-regression:
+    name: Complete native regression (runtime, UI and independent player; manual only)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      xcode: "26.6"
+    scripts:
+      - name: Verify exact source and run complete native suites without retries
+        script: |
+          bash scripts/native-regression-ci.sh
+    artifacts:
+      - build/native-regression/*.log
+      - build/native-regression/*.zip
+      - build/native-regression/*.json
+  ilampa-concurrency-tests:
+    name: Concurrency and real WebKit simulator tests (manual only, no IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Generate project and run concurrency tests
+        script: |
+          brew install xcodegen
+          xcodegen generate
+          bash scripts/concurrency-tests-ci.sh
+    artifacts:
+      - build/concurrency-tests/*.log
+      - build/concurrency-tests/*.zip
+  ilampa-legacy-settings-tests:
+    name: Legacy settings simulator tests (manual only, no IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Generate project and run focused tests
+        script: |
+          brew install xcodegen
+          xcodegen generate
+          bash scripts/legacy-settings-tests-ci.sh
+    artifacts:
+      - build/legacy-settings-tests/*.log
+      - build/legacy-settings-tests/*.zip
+  ilampa-online-navigation-tests:
+    name: Online navigation WKWebView tests (manual only, no IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Generate test project
+        script: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Run focused simulator tests
+        script: |
+          set -e
+          bash scripts/metadata-tests-ci.sh
+          bash scripts/online-navigation-tests-ci.sh
+    artifacts:
+      - build/online-navigation-tests/*.log
+      - build/online-navigation-tests/*.zip
+      - build/metadata-tests/*.log
+      - build/metadata-tests/*.zip
+  ilampa-controlled-verification:
+    name: Controlled native verification and unsigned IPA (manual only)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+      - name: Build, test, package and retain evidence
+        script: |
+          bash scripts/controlled-verification-ci.sh
+    artifacts:
+      - build/device-diagnostic/iLampa-unsigned.ipa
+      - build/device-diagnostic/*.txt
+      - build/device-diagnostic/*.xcarchive.zip
+      - build/controlled-verification/*.log
+      - build/controlled-verification/*.txt
+      - build/controlled-verification/*.zip
+  ilampa-device-diagnostic-ipa:
+    name: Controlled iPhone diagnostic IPA (manual only)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Local integrity tests
+        script: |
+          node tests/unit/test_suite_master.js
+          node tests/unit/test_source_integrity.js
+          node tests/unit/test_bridge_runtime.js
+          node --check iLampa/Resources/lampa_bridge.js
+          node --check iLampa/Resources/www/app.min.js
+          node --check iLampa/Resources/plugins/plugin_lab_probe.js
+          node tests/unit/test_plugin_lab_probe.js
+          python3 tests/unit/test_plugin_lab_archive.py
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+      - name: Compile and verify unsigned device IPA
+        script: |
+          bash scripts/device-diagnostic-package.sh
+    artifacts:
+      - build/device-diagnostic/iLampa-unsigned.ipa
+      - build/device-diagnostic/*.txt
+      - build/device-diagnostic/*.xcarchive.zip
+  ilampa-player-diagnostics:
+    name: Player diagnostics (manual authorization required)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    scripts:
+      - name: Generate project
+        script: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Targeted player and WebKit diagnostics
+        script: |
+          bash scripts/player-diagnostic-ci.sh
+    artifacts:
+      - build/player-diagnostics.zip
+      - build/player-diagnostics/*.log
+      - build/player-diagnostics/*.zip
+  ilampa-ios-build:
+    name: Verify iLampa iOS (No IPA Distribution)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'poc/**'
+          include: true
+          source: true
+        - pattern: 'main'
+          include: true
+          source: true
+    scripts:
+      - name: Precheck tests
+        script: |
+          node tests/unit/test_suite_master.js
+          node tests/unit/test_source_integrity.js
+          if [ -f tests/unit/test_gate1_poc.js ]; then node tests/unit/test_gate1_poc.js; fi
+          if [ -f tests/unit/test_gate2_1_apple_redesign.js ]; then node tests/unit/test_gate2_1_apple_redesign.js; fi
+          if [ -f tests/unit/test_design_lock_verification.js ]; then node tests/unit/test_design_lock_verification.js; fi
+          node --check iLampa/Resources/lampa_bridge.js
+          node --check iLampa/Resources/www/app.min.js
+          node tests/unit/test_bridge_runtime.js
+          node --check iLampa/Resources/plugins/plugin_lab_probe.js
+          node tests/unit/test_plugin_lab_probe.js
+          python3 tests/unit/test_plugin_lab_archive.py
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+      - name: Configure Version, Monotonic Build Number and Git Metadata
+        script: |
+          # The last delivered 2.0.1 build was 1002; use a higher release range.
+          # BUILD_NUMBER is increased for each Codemagic run of this workflow.
+          APP_VERSION=$(awk '/MARKETING_VERSION:/ {gsub(/"/, "", $2); print $2; exit}' project.yml)
+          test -n "$APP_VERSION"
+          BASE_BUILD=$(awk '/CURRENT_PROJECT_VERSION:/ {gsub(/"/, "", $2); print $2; exit}' project.yml)
+          test -n "$BASE_BUILD"
+          BUILD_NUM=$((BASE_BUILD + ${BUILD_NUMBER:-1}))
+          GIT_SHA=$(git rev-parse --short=7 HEAD)
+          echo "Configuring build: Version $APP_VERSION, Build $BUILD_NUM, Commit $GIT_SHA"
+          sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD_NUM\"/g" project.yml
+          sed -i '' "s/CFBundleVersion: \".*\"/CFBundleVersion: \"$BUILD_NUM\"/g" project.yml
+          sed -i '' "s/ILAMPA_GIT_COMMIT: \".*\"/ILAMPA_GIT_COMMIT: \"$GIT_SHA\"/g" project.yml
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" iLampa/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $APP_VERSION" iLampa/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" iLampa/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUM" iLampa/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :ILAMPA_GIT_COMMIT $GIT_SHA" iLampa/Info.plist || /usr/libexec/PlistBuddy -c "Add :ILAMPA_GIT_COMMIT string $GIT_SHA" iLampa/Info.plist
+      - name: Generate Xcode Project
+        script: |
+          xcodegen generate
+          ls -la iLampa.xcodeproj
+      - name: Compile Application (arm64 Device Target)
+        script: |
+          xcodebuild -project iLampa.xcodeproj \
+            -scheme iLampa \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            build
+      - name: Run simulator XCTest and XCUITest suites
+        script: |
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; xs=[x for k in sorted(d,reverse=True) if "iOS" in k for x in d[k] if x["name"].startswith("iPhone")]; print(xs[0]["udid"] if xs else "")')
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "No available iPhone simulator for runtime integration test" >&2
+            exit 1
+          fi
+          # A fully booted single simulator avoids concurrent AVAudioSession
+          # and accessibility sessions in cloned simulator processes.
+          xcrun simctl boot "$SIMULATOR_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          mkdir -p build/test-results
+          set +e
+          set -o pipefail
+          # Run every test exactly once. The previous targeted + full runs
+          # repeated media and UI tests on the same simulator, exhausting time
+          # and potentially leaving CoreAudio in a degraded state.
+          xcodebuild -project iLampa.xcodeproj \
+            -scheme iLampa \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -parallel-testing-enabled NO \
+            -derivedDataPath build/SimulatorDerivedData \
+            -resultBundlePath build/test-results/full.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            test 2>&1 | tee build/test-results/full.log
+          FULL_STATUS=${PIPESTATUS[0]}
+          ditto -c -k --keepParent build/test-results/full.xcresult build/test-results/full.xcresult.zip
+          zip -j build/test-results/test-logs.zip build/test-results/full.log
+          echo "Full xcodebuild status: $FULL_STATUS"
+          if [ "$FULL_STATUS" -ne 0 ]; then exit 1; fi
+    artifacts:
+      - build/test-results/*.log
+      - build/test-results/*.zip

@@ -1,0 +1,30 @@
+# Xcode
+build/
+build-*/
+DerivedData/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+*.xcarchive/
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+
+# App packaging
+*.ipa
+Payload/
+
+# OS and Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Local Python command-contract checks
+__pycache__/
+
+# Local design packages
+iLampa_Stage1_6_Final/

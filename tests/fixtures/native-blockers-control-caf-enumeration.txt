@@ -1,0 +1,3 @@
+Plan AVPlayerControl
+	AVPlayerControlTests/PlayerStateIntegrationTests/testIndependentAVAudioFileAndAVPlayer()
+	AVPlayerControlTests/PlayerStateIntegrationTests/testLocalPlayerAdvancesPausesSeeksAndResumes() (disabled)

@@ -1,0 +1,8 @@
+[
+  {"name":"Head filter","category":"settings / UI","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (Разное)","url":"https://and7ey.github.io/lampa/head_filter.js"},
+  {"name":"Shikimori catalog","category":"catalog / metadata","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (Управление)","url":"https://lampame.github.io/main/shikimori.js"},
+  {"name":"Additional categories","category":"catalog / navigation","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (Управление)","url":"https://lampame.github.io/main/nc/nc.js"},
+  {"name":"Online Mod","category":"source","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (Онлайн видео)","url":"https://nb557.github.io/plugins/online_mod.js"},
+  {"name":"CUB rating","category":"metadata","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (Разное)","url":"https://plugin.rootu.top/cub-rating.js"},
+  {"name":"Navigation Bar","category":"navigation / settings","registry":"https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json (@pavelpikta)","url":"https://lampaplugins.github.io/store/navigation_bar.js"}
+]
