@@ -261,6 +261,15 @@ struct ContentView: View {
                 self.activePayload = active
             }
             let args = ProcessInfo.processInfo.arguments
+            // UI test app containers persist across launches. Remove a
+            // previous test-only fixture before regular tests/prod navigation,
+            // so this E2E scenario never pollutes users' plugin inventories.
+            if args.contains("--uitesting") && !args.contains("--test-real-plugin-selection"),
+               let fixture = PluginManager.shared.installedPlugins.first(where: {
+                   $0.urlString == "https://fixture.invalid/ilampa-ci-real-plugin-ui.js"
+               }) {
+                PluginManager.shared.remove(plugin: fixture)
+            }
             // CI-only, controlled source fixture. Exercises the production
             // PluginManager -> real Lampa Activity -> trusted DOM click ->
             // native AVPlayer pipeline without substituting JS callbacks.
