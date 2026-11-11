@@ -136,6 +136,7 @@ struct ContentView: View {
                     onControlsInteraction: { togglePlayerActionsOnTap() }
                 )
                 .ignoresSafeArea()
+                .simultaneousGesture(TapGesture().onEnded { showPlayerActionsTemporarily() })
 
 
                 // Only iLampa-specific actions are overlaid on the video.

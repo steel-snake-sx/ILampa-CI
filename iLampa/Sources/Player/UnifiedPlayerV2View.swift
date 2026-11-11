@@ -13,6 +13,23 @@ private final class PlayerV2LayerView: UIView {
 private struct PlayerV2Surface: UIViewRepresentable {
     let player: AVPlayer
     let onLayer: (AVPlayerLayer) -> Void
+    let onTap: () -> Void
+
+    @MainActor
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onTap: () -> Void
+        init(onTap: @escaping () -> Void) { self.onTap = onTap }
+        @objc func tapped(_ sender: UITapGestureRecognizer) {
+            guard sender.state == .ended else { return }
+            onTap()
+        }
+        nonisolated func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool { true }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onTap: onTap) }
 
     func makeUIView(context: Context) -> PlayerV2LayerView {
         let view = PlayerV2LayerView()
@@ -20,11 +37,17 @@ private struct PlayerV2Surface: UIViewRepresentable {
         view.playerLayer.videoGravity = .resizeAspect
         view.playerLayer.player = player
         onLayer(view.playerLayer)
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.tapped(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        view.addGestureRecognizer(tap)
         return view
     }
 
     func updateUIView(_ uiView: PlayerV2LayerView, context: Context) {
         if uiView.playerLayer.player !== player { uiView.playerLayer.player = player }
+        context.coordinator.onTap = onTap
     }
 }
 
@@ -273,10 +296,10 @@ struct UnifiedPlayerV2View: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            PlayerV2Surface(player: playback.player) { layer in playback.attachLayer(layer) }
+            PlayerV2Surface(player: playback.player,
+                            onLayer: { layer in playback.attachLayer(layer) },
+                            onTap: { playback.toggleControls() })
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture { playback.toggleControls() }
             if playback.controlsVisible {
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
@@ -325,6 +348,8 @@ struct UnifiedPlayerV2View: View {
                             Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 35))
                         }
+                        .accessibilityIdentifier("playerPlayPauseV2")
+                        .accessibilityLabel("Play/Pause")
                         Button { playback.seek(to: playback.position + 10) } label: {
                             Image(systemName: "goforward.10")
                         }
