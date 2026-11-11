@@ -204,6 +204,27 @@ final class PluginLabTests: XCTestCase {
         XCTAssertEqual(failed.status, .fail)
     }
 
+    func testConstructedWebKitUIRaisesEvidenceButNeverClaimsPass() {
+        let item = PluginLabItem(id: "rendered_ui", name: "Rendered UI",
+            url: "https://fixture.invalid/rendered.js", origin: .custom,
+            initialEnabledState: false, isInstalled: false)
+        var report = PluginProbeRawReport()
+        report.registeredComponents = [.init(
+            name: "working_ui", isPlatform: false, hasNativeRenderer: false,
+            lifecycleMethods: ["create"], instantiationSuccess: true,
+            instantiationError: nil)]
+        report.domAdditions = [.init(tag: "div", action: nil,
+            className: "selector", text: "Stream")]
+        let (components, failures, summaries) = PluginUIProbe.analyze(
+            rawReport: report, pluginUrl: item.url, pluginName: item.name)
+        let analyzed = PluginCapabilityAnalyzer.analyze(
+            item: item, rawReport: report, uiComponents: components,
+            uiFailures: failures, uiSummaries: summaries, downloadError: nil)
+        XCTAssertEqual(analyzed.status, .partial)
+        XCTAssertEqual(analyzed.confidence, .medium)
+        XCTAssertTrue(analyzed.failureSummary?.contains("Нажатия") == true)
+    }
+
     func testProbeReportWithRegistrationMetadataDecodes() throws {
         // The JS probe emits JSON-encoded metadata strings, not nested objects.
         // This exact mismatch previously blocked all 42 plugins in one campaign.

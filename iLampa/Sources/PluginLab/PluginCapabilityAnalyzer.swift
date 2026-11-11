@@ -55,10 +55,18 @@ final class PluginCapabilityAnalyzer {
         let registeredCount = rawReport.registeredSources.count +
             rawReport.registeredSettings.count + uiComponents.count
         if registeredCount > 0 {
+            // A constructor plus create() yielding real DOM is stronger than
+            // Component.add alone. It still proves neither click-handling nor
+            // a stream handoff, so the verdict must remain PARTIAL.
+            let constructedWebKitUI = uiComponents.contains {
+                $0.instantiationSuccess && !$0.domElementsCreated.isEmpty
+            }
             return AnalysisResult(
-                status: .partial, confidence: .low,
+                status: .partial, confidence: constructedWebKitUI ? .medium : .low,
                 primaryRootCause: .unverifiedTestLimitation,
-                failureSummary: "Обнаружены \(registeredCount) зарегистрированных возможностей, но их функциональность не подтверждена.",
+                failureSummary: constructedWebKitUI
+                    ? "WebKit создал интерфейс плагина. Нажатия, действия и воспроизведение ещё не проверены."
+                    : "Обнаружены \(registeredCount) зарегистрированных возможностей, но их функциональность не подтверждена.",
                 apiCoverage: coverage,
                 architecturalRemediation: PluginLabRootCause.unverifiedTestLimitation.suggestedRemediation
             )
