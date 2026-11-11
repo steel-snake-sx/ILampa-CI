@@ -209,4 +209,18 @@ assert.equal(persistedStorage.account_user, 'real-user-value', 'Probe must prese
 globalObj.__pluginLab.clear();
 assert.equal(globalObj.__pluginLab.getReport().registeredComponents.length, 0);
 
+// A plugin callback may register UI after its original script has returned
+// (e.g. Lampa.Listener.follow('app', ready)). Attribute ONLY callbacks that
+// retain the exact plugin URL, not unrelated core activity.
+globalObj.__pluginLab.beginPlugin('bundled://plugins/async-fixture.js');
+globalObj.__pluginLab.endPlugin();
+globalObj.__ilampaExecutingPluginURL = 'bundled://plugins/async-fixture.js';
+globalObj.Lampa.Component.add('late_async_component', function () {});
+globalObj.__ilampaExecutingPluginURL = null;
+globalObj.Lampa.Component.add('unrelated_core_component', function () {});
+const late = globalObj.__pluginLab.getReport();
+assert.equal(late.registeredComponents.length, 1);
+assert.equal(late.registeredComponents[0].name, 'late_async_component');
+globalObj.__pluginLab.clear();
+
 console.log('All Plugin Lab probe assertions passed successfully!');

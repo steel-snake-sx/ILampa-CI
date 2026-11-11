@@ -26,7 +26,12 @@
     // Count synchronous work only while evaluating the selected plugin.
     // Lampa Core background activity is not evidence of plugin behavior.
     function isPluginCall() {
-        return !!activePluginURL && global.__ilampaExecutingPluginURL === activePluginURL;
+        // Late ready/timer/promise handlers retain their authentic plugin owner
+        // through lampa_bridge's async attribution hook. They must be observed
+        // even after the synchronous eval() scope has exited, but unrelated
+        // Lampa Core events remain excluded.
+        var expectedOwner = activePluginURL || probedPluginURL;
+        return !!expectedOwner && global.__ilampaExecutingPluginURL === expectedOwner;
     }
     var isolatedStorage = Object.create(null);
 
