@@ -57,6 +57,8 @@ jobs:
         run: bash scripts/prepare-upstream-fusion.sh
       - name: Check selected candidate runtime syntax
         run: node --check iLampa/Resources/www/app.min.js
+      - name: Verify selected native-managed Plugins lifecycle
+        run: node tests/unit/test_selected_core_managed.js
 
   simulator:
     needs: preflight

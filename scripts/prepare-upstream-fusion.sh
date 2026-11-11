@@ -21,6 +21,7 @@ test "$(git -C "$STAGING" rev-parse HEAD)" = "$SHA"
   test -s dest/app.js
 )
 cp "$STAGING/dest/app.js" "$ROOT/iLampa/Resources/www/app.min.js"
+python3 scripts/patch-plugins-native-managed.py "$ROOT/iLampa/Resources/www/app.min.js"
 node --check "$ROOT/iLampa/Resources/www/app.min.js"
 test -s "$ROOT/iLampa/Resources/plugins/online_mod.js"
 printf 'Original Lampa source SHA=%s; local ByLampa Online Mod preserved\n' "$SHA"
