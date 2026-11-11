@@ -474,5 +474,24 @@ final class RealWebKitBootstrapTests: XCTestCase {
         await fulfillment(of: [activated], timeout: 90)
         let result = try await webView.evaluateJavaScript("typeof Lampa.Component.get('sample_source') === 'function'")
         XCTAssertEqual(result as? Bool, true)
+
+        // Registration is not functionality. Instantiate the actual shipped
+        // component in the *real* selected core, ask it to build UI, and
+        // require actionable source rows rather than just a function symbol.
+        let rendered = try await webView.evaluateJavaScript("""
+        (function() {
+          var C = Lampa.Component.get('sample_source');
+          var instance = new C({
+            title: 'Reference film', mediaType: 'movie', source: 'tmdb',
+            movie: { id: 550, title: 'Reference film', source: 'tmdb', media_type: 'movie' }
+          });
+          var ui = instance.create();
+          var count = ui && ui.find ? ui.find('.sample-source-list .selector').length : 0;
+          if (instance.destroy) instance.destroy();
+          return count;
+        })();
+        """) as? Int
+        XCTAssertEqual(rendered, 3,
+            "A registered Lampa plugin must actually construct its source rows in WebKit")
     }
 }

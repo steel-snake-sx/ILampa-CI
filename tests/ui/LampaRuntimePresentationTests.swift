@@ -43,4 +43,22 @@ final class LampaRuntimePresentationTests: XCTestCase {
         close.tap()
         XCTAssertTrue(open.waitForExistence(timeout: 5))
     }
+    func testLampaIsAnInteractiveFirstClassTab() {
+        let app = XCUIApplication()
+        continueAfterFailure = false
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        let tab = app.tabBars.buttons["Lampa"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10),
+            "Native app must expose the unmodified Lampa plugin environment")
+        tab.tap()
+        let webView = app.webViews.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sharedLampaRuntime-'")
+        ).firstMatch
+        XCTAssertTrue(webView.waitForExistence(timeout: 20))
+        XCTAssertGreaterThan(webView.frame.width, 300,
+            "Plugin DOM must be a visible interactive WebKit surface")
+        // The tab does not need to restart or duplicate the plugin runtime.
+        XCTAssertTrue(app.tabBars.buttons["Настройки"].exists)
+    }
 }

@@ -72,6 +72,15 @@ struct ContentView: View {
                 Label("Настройки", systemImage: "gearshape")
             }
             .tag(3)
+
+            // Lampa is a first-class interactive runtime, not a hidden plugin
+            // evaluator. Its original DOM, menu, activities and extensions
+            // remain inside the one shared WebKit document.
+            LampaRuntimeTabView()
+                .tabItem {
+                    Label("Lampa", systemImage: "puzzlepiece.extension")
+                }
+                .tag(4)
         }
         .accentColor(.blue)
         .alert("Воспроизведение недоступно", isPresented: Binding(
@@ -773,5 +782,44 @@ struct ContentView: View {
             ],
             isDiagnostic: true
         ))
+    }
+}
+
+
+/// Interactive compatibility workspace for ordinary Lampa/ByLampa JS plugins.
+/// Reuses the single production WKWebView; it never loads a second core.
+@MainActor
+private struct LampaRuntimeTabView: View {
+    @ObservedObject private var host = LampaHeadlessHost.shared
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            LampaHostContainerView(isInteractive: true)
+                .accessibilityIdentifier("lampaRuntimeTab")
+            if !host.isAppReady {
+                VStack(spacing: 12) {
+                    if host.compatibilityError == nil {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                    Text(host.compatibilityError ?? "Запуск Lampa и восстановление плагинов…")
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                    Button("Перезагрузить Lampa") { host.bootstrap() }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("reloadLampaTab")
+                }
+                .padding(20)
+                .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 12))
+                .padding()
+                .accessibilityIdentifier("lampaRuntimeTabStatus")
+            }
+        }
+        .onAppear { host.setAttachmentMode(.attachedVisible) }
+        .onDisappear { host.setAttachmentMode(.attachedUnobtrusive) }
     }
 }
