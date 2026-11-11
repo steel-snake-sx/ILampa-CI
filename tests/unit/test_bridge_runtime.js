@@ -201,6 +201,16 @@ test('pre-ready search is structured, queues no retry, and becomes ready only on
     assert.equal(r.search().success, true);
 });
 
+test('original Lampa Activity opens the selected installed plugin component, not forced Online Mod', () => {
+    const r = runtime(); r.show();
+    r.components.online_fxapi = {};
+    const result = r.search({ component: 'online_fxapi' });
+    assert.equal(result.success, true);
+    assert.equal(r.context.Lampa.Activity.active().component, 'online_fxapi');
+    // No playback before actual user selection.
+    assert.equal(r.received('lampaNative').length, 0);
+});
+
 test('generic plugin component selected by a trusted gesture reaches native playback', () => {
     const r = runtime(); r.show(); r.search();
     r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',

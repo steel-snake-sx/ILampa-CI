@@ -492,15 +492,15 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
             mediaType: item.canonicalType,
             season: season,
             episode: episode,
-            balancer: component,
+            balancer: nil,
             generation: lifecycle.generation,
             revision: 1,
             originalTitle: item.originalTitle ?? item.originalName
         )
-        triggerMovieSearch(context: context)
+        triggerMovieSearch(context: context, component: component)
     }
 
-    func triggerMovieSearch(context: MediaResolutionContext) {
+    func triggerMovieSearch(context: MediaResolutionContext, component: String? = nil) {
         guard context.generation == currentGeneration else { return }
         sourceDiscoveryWaiters.cancelAll()
         self.activeResolutionContext = context
@@ -520,7 +520,7 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
             "canonicalId": context.canonicalId,
             "requestId": context.requestId.uuidString,
             "actionId": context.actionId.uuidString,
-            "component": "online_mod"
+            "component": (component?.isEmpty == false ? component! : "online_mod")
         ]
         params["season"] = context.season
         params["episode"] = context.episode

@@ -20,6 +20,7 @@ struct MediaDetailView: View {
 
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var pluginManager = PluginManager.shared
+    @ObservedObject private var pluginRegistry = PluginCapabilityRegistry.shared
     @ObservedObject private var metadataHost = LampaHeadlessHost.shared
     @State private var metadataRequestId: String?
     @AppStorage(DeveloperMode.preferenceKey) private var developerModeEnabled = false
@@ -64,6 +65,17 @@ struct MediaDetailView: View {
         pluginManager.installedPlugins.contains {
             ($0.urlString.contains("online_mod") || $0.urlString.contains("online.js")) &&
             $0.isEligibleForAutomaticRuntime
+        }
+    }
+
+    private var interactivePluginComponents: [PluginRegisteredSource] {
+        // The actual component was registered by the live Lampa JavaScript
+        // runtime. Installed metadata by itself cannot start a source.
+        pluginRegistry.registeredSources.filter {
+            $0.isEnabled && metadataHost.runningPlugins.contains($0.pluginUrl) &&
+            ($0.capability == .interactiveComponent || $0.capability == .mediaSource)
+        }.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 
@@ -143,7 +155,7 @@ struct MediaDetailView: View {
                             // manipulate Lampa's DOM, not native SwiftUI views.
                             // The shared runtime is the compatible interactive path.
                             Divider().padding(.leading, 54)
-                            Button(action: openInLampa) {
+                            Button(action: { openInLampa() }) {
                                 HStack(spacing: 12) {
                                     Image(systemName: "puzzlepiece.extension.fill")
                                         .foregroundColor(.blue)
@@ -162,6 +174,33 @@ struct MediaDetailView: View {
                                 .contentShape(Rectangle())
                             }
                             .accessibilityIdentifier("openWithLampaPluginsButton")
+                            if !interactivePluginComponents.isEmpty {
+                                Divider().padding(.leading, 54)
+                                Menu {
+                                    ForEach(interactivePluginComponents) { source in
+                                        Button(source.name) {
+                                            openInLampa(component: source.name)
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "rectangle.stack.badge.play")
+                                            .foregroundColor(.blue).frame(width: 28)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Выбрать компонент плагина")
+                                                .font(.headline).foregroundColor(.primary)
+                                            Text("Filmix, NetFix и другие зарегистрированные источники")
+                                                .font(.caption).foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.down").foregroundColor(.secondary)
+                                    }
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .accessibilityIdentifier("pluginComponentSelector")
+                            }
                             if item.canonicalType == "tv" {
                                 Divider().padding(.leading, 54)
                                 Button(action: { showEpisodes = true }) {
@@ -705,10 +744,11 @@ struct MediaDetailView: View {
         }
     }
 
-    private func openInLampa() {
+    private func openInLampa(component: String? = nil) {
         LampaHeadlessHost.shared.triggerMovieSearch(item: item,
             season: item.canonicalType == "tv" ? selectedSeason : nil,
-            episode: item.canonicalType == "tv" ? selectedEpisode : nil)
+            episode: item.canonicalType == "tv" ? selectedEpisode : nil,
+            component: component)
         showLampaWebSheet = true
     }
 
