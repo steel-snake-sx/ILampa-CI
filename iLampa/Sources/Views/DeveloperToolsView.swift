@@ -28,6 +28,7 @@ struct DeveloperToolsView: View {
                     NavigationLink { WebKitEngineDiagnosticsView(onPlayCustomUrl: onPlayCustomUrl) } label: {
                         developerRow("Движок WebKit", "Состояние и мост со Swift", "cpu")
                     }
+                    .accessibilityIdentifier("navWebKitEngine")
                     NavigationLink { DeveloperMediaTestView(onPlayCustomUrl: onPlayCustomUrl) } label: {
                         developerRow("Тестовый медиаплеер", "HLS / MP4, изолированная проверка", "play.rectangle")
                     }
