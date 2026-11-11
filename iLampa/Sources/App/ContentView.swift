@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var nextEpisodeUnavailable = false
     @State private var isResolvingNextEpisode = false
     @State private var nextEpisodeResolutionTask: Task<Void, Never>?
+    @AppStorage("ilampa_player_v2_enabled") private var usePlayerV2 = true
     @State private var playerActionsVisible = true
     @State private var hidePlayerActionsTask: Task<Void, Never>?
 
@@ -99,6 +100,27 @@ struct ContentView: View {
                 // AVKit owns the entire playback surface and its transport controls.
                 // No bottom VStack/toolbar may reduce the video viewport.
                 Color.black.ignoresSafeArea()
+                if usePlayerV2 {
+                    UnifiedPlayerV2View(
+                        payload: Binding(
+                            get: { activePayload ?? payload },
+                            set: { activePayload = $0 }
+                        ),
+                        isResolvingEpisode: isResolvingNextEpisode,
+                        onTimeUpdate: { time, duration, hash in
+                            syncTimeToHistory(time: time, duration: duration, hash: hash)
+                        },
+                        onNearEnd: { startAutoNextCountdown() },
+                        onEnded: { handleEpisodeEnded() },
+                        onPlaybackError: { diag in self.playbackDiagnosis = diag },
+                        onDismiss: { dismissPlayer() },
+                        onQualitySelected: switchQuality,
+                        onStudioSelected: switchStudio,
+                        onEpisodeSelected: switchEpisode,
+                        onNextEpisode: advanceToNextEpisodeNow
+                    )
+                    .ignoresSafeArea()
+                } else {
                 NativePlayerView(
                     payload: Binding(
                         get: { activePayload ?? payload },
@@ -211,9 +233,10 @@ struct ContentView: View {
                     .animation(.easeInOut(duration: 0.22), value: playerActionsVisible)
                     Spacer(minLength: 0)
                 }
+                }
             }
             .background(Color.black.ignoresSafeArea())
-            .onAppear { showPlayerActionsTemporarily() }
+            .onAppear { if !usePlayerV2 { showPlayerActionsTemporarily() } }
             .alert("Следующая серия недоступна", isPresented: $nextEpisodeUnavailable) {
                 Button("Понятно", role: .cancel) {}
             } message: {

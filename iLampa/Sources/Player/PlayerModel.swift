@@ -508,6 +508,14 @@ final class PlayerPlaybackController: ObservableObject {
         activeTeardown = teardown
     }
 
+    /// Native Player V2 owns an AVPlayerLayer rather than AVPlayerViewController.
+    func registerLayer(player: AVPlayer, owner: UUID, teardown: @escaping @MainActor () -> Void) {
+        activePlayer = player
+        activeController = nil
+        activeOwner = owner
+        activeTeardown = teardown
+    }
+
     func isActive(owner: UUID) -> Bool { activeOwner == owner }
 
     func claimAudioSession(owner: UUID) { audioOwners.insert(owner) }
