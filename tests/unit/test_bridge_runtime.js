@@ -321,6 +321,25 @@ test('generic plugin component selected by a trusted gesture reaches native play
     assert.equal(r.received('lampaNative')[0].pluginId, 'online_fxapi');
 });
 
+test('movie selection and playback agree even when a provider reuses episode fields', () => {
+    const r = runtime(); r.show(); r.search();
+    r.context.Lampa.Activity.push({ component: 'sample_source', source: 'tmdb',
+        mediaType: 'movie', season: 1, episode: 1,
+        movie: { id: 550, media_type: 'movie' } });
+    r.dispatch(element(), () => r.play({
+        title: 'Apple Test Stream', url: 'https://stream.test/movie.m3u8', season: 1, episode: 1
+    }));
+    const selection = r.received('lampaSelection')[0];
+    const payload = r.received('lampaNative')[0];
+    assert.ok(selection && payload);
+    for (const key of ['requestId', 'canonicalId', 'mediaType', 'pluginId', 'selectionContext', 'season', 'episode']) {
+        assert.equal(payload[key], selection[key], 'Native selection gate field: ' + key);
+    }
+    assert.equal(payload.mediaType, 'movie');
+    assert.equal(payload.season, null);
+    assert.equal(payload.episode, null);
+});
+
 test('generic plugin without a user gesture cannot start playback', () => {
     const r = runtime(); r.show(); r.search();
     r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',

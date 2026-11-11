@@ -332,8 +332,8 @@
             canonicalId: active.canonicalId || movie.canonicalId ||
                 'urn:media:' + source + ':' + mediaType + ':' + movie.id,
             mediaType: mediaType,
-            season: active.season == null ? null : active.season,
-            episode: active.episode == null ? null : active.episode
+            season: mediaType !== 'tv' || active.season == null ? null : active.season,
+            episode: mediaType !== 'tv' || active.episode == null ? null : active.episode
         };
     }
 
@@ -437,8 +437,11 @@
             action: 'play', isDiagnostic: false,
             requestId: intent.requestId, canonicalId: intent.canonicalId, mediaType: intent.mediaType,
             pluginId: intent.pluginId, selectionContext: intent.selectionContext,
-            season: payload.season == null ? (intent.season == null ? null : intent.season) : payload.season,
-            episode: payload.episode == null ? (intent.episode == null ? null : intent.episode) : payload.episode
+            // Providers can reuse episode-shaped descriptors for movies. Keep
+            // their selected movie identity consistent with lampaSelection;
+            // stray episode fields must not turn it into a mismatched TV item.
+            season: intent.mediaType === 'movie' ? null : (payload.season == null ? (intent.season == null ? null : intent.season) : payload.season),
+            episode: intent.mediaType === 'movie' ? null : (payload.episode == null ? (intent.episode == null ? null : intent.episode) : payload.episode)
         }));
     }
 

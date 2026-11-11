@@ -168,6 +168,7 @@ struct ContentView: View {
                 )
 
                 VStack(spacing: 0) {
+                    if playerActionsVisible {
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
                         if ((activePayload ?? payload).playlist?.count ?? 0) > 1 {
@@ -220,12 +221,11 @@ struct ContentView: View {
                             .frame(height: 70)
                             .allowsHitTesting(false)
                     }
-                    .opacity(playerActionsVisible ? 1 : 0)
-                    .allowsHitTesting(playerActionsVisible)
-                    .accessibilityHidden(!playerActionsVisible)
-                    .animation(.easeInOut(duration: 0.22), value: playerActionsVisible)
+                    .transition(.opacity)
+                    }
                     Spacer(minLength: 0)
                 }
+                .animation(.easeInOut(duration: 0.22), value: playerActionsVisible)
             }
             .background(Color.black.ignoresSafeArea())
             // Watch the entire composed player presentation as well as
