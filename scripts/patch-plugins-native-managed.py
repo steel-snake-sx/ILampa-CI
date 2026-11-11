@@ -25,7 +25,7 @@ functions = {
     "push": "if (window.__ilampaNativeManaged === true) return;",
     "save": "if (window.__ilampaNativeManaged === true) return;",
     "modify": "if (window.__ilampaNativeManaged === true) return;",
-    "get": "if (window.__ilampaNativeManaged === true) return [];",
+    "get": "if (window.__ilampaNativeManaged === true) return Array.isArray(window.__ilampaNativePluginManifest) ? window.__ilampaNativePluginManifest.map(function(p) { return { url: p.url, name: p.name, status: p.status }; }) : [];",
     "awaits": "if (window.__ilampaNativeManaged === true) return [];",
 }
 for method, guard in functions.items():

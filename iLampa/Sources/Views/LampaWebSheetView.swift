@@ -88,6 +88,12 @@ struct LampaWebSheetView: View {
             .onDisappear {
                 host.setAttachmentMode(.attachedUnobtrusive)
             }
+            .onChange(of: host.lastInterceptedPayload?.requestId) { _, requestId in
+                // Dismiss the original Lampa sheet only after a verified
+                // selection reached the native player; do not force-close it
+                // for mere source discovery or plugin navigation.
+                if requestId != nil { dismiss() }
+            }
         }
     }
 }

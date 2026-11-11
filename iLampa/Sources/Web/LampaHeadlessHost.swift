@@ -229,10 +229,19 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
         documentToken = UUID().uuidString
         let scripts = wv.configuration.userContentController
         scripts.removeAllUserScripts()
+        // The upstream Plugins.get() API remains readable to extensions, even
+        // though installation, execution and persistence belong to PluginManager.
+        // An empty list here breaks plugins that query their sibling dependencies.
+        let pluginManifest = PluginManager.shared.installedPlugins
+            .filter { $0.isEligibleForAutomaticRuntime }
+            .map { ["url": $0.urlString, "name": $0.name, "status": 1] as [String: Any] }
+        let pluginManifestJSON = (try? JSONSerialization.data(withJSONObject: pluginManifest))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         let ownershipScript = """
         window.__ilampaGeneration = \(generation);
         window.__ilampaDocumentToken = '\(documentToken)';
         window.__ilampaNativeManaged = true;
+        window.__ilampaNativePluginManifest = \(pluginManifestJSON);
         """
         scripts.addUserScript(WKUserScript(source: ownershipScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         if let bridgePath = Bundle.main.path(forResource: "lampa_bridge", ofType: "js"),
@@ -1142,8 +1151,11 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
                 // explicit voice fields. Do not treat an arbitrary currentStudio ID as a label.
                 payload.currentStudioName = selection.selectedVoiceName
 
-                // Strict resolution context match
-                if let activeContext = activeResolutionContext {
+                // Headless discovery must match its native card. A visible,
+                // explicitly tapped Lampa plugin may navigate to a different
+                // card: the validated JS selection is authoritative there.
+                if payload.selectionContext == "headless_native_bridge",
+                   let activeContext = activeResolutionContext {
                     guard activeContext.matches(canonicalId: payload.canonicalId, season: payload.season, episode: payload.episode) else {
                         let reason = activeContext.rejectionReason(canonicalId: payload.canonicalId, season: payload.season, episode: payload.episode) ?? "Context mismatch"
                         DiagnosticsLogManager.shared.log(category: "[BridgeHandoff]", message: "Rejected stream: \(reason)", level: .warning)
@@ -1177,6 +1189,12 @@ struct DiscoveredLampaSource: Identifiable, Equatable {
                     // The waiting native selection task owns the one playback handoff.
                     // Do not also present the player from this callback.
                     authorizedPlaybackContext = nil
+                } else if currentAttachmentMode == .attachedVisible {
+                    // A real user action in visible Lampa already went through
+                    // lampaSelection + PlaybackSelectionGate. It must reach the
+                    // native player instead of being stored as diagnostic data.
+                    self.authorizedPlaybackContext = nil
+                    self.onPlayRequest?(payload)
                 } else if let authContext = authorizedPlaybackContext,
                    authContext.matches(canonicalId: payload.canonicalId, season: payload.season, episode: payload.episode) {
                     self.authorizedPlaybackContext = nil

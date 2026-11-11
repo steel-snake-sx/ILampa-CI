@@ -13,6 +13,7 @@ assert.ok(start >= 0 && anchor > start && end > anchor, 'Selected core must cont
 const calls = { reads: 0, writes: 0, scripts: [], account: 0 };
 const context = {
     __ilampaNativeManaged: true,
+    __ilampaNativePluginManifest: [{url:'https://plugins.example/installed.js', name:'Installed',status:1}],
     lampa_settings: { plugins_use: true },
     console: { log() {}, warn() {} },
     Request: function Request() {},
@@ -46,6 +47,10 @@ plugin.remove(item);
 assert.equal(callbacks, 2, 'Managed startup must still report completion');
 assert.deepEqual(calls, { reads: 0, writes: 0, scripts: [], account: 0 },
     'Native-managed runtime must not auto-fetch or persist plugins');
-assert.equal(plugin.get().length, 0);
+assert.deepEqual(Array.from(plugin.get(), entry => entry.url), ['https://plugins.example/installed.js']);
+assert.equal(plugin.get()[0].status, 1);
+plugin.get()[0].status = 0;
+assert.equal(context.__ilampaNativePluginManifest[0].status, 1,
+    'Read-only projection must not mutate the native plugin registry');
 assert.equal(plugin.awaits().length, 0);
 console.log('PASS selected core native-managed Plugins lifecycle: no automatic plugin loading or persistence');

@@ -139,6 +139,29 @@ struct MediaDetailView: View {
                             }
                             .disabled(isResolvingSources)
                             .accessibilityIdentifier("watchNowButton")
+                            // Most Lampa extensions register JS UI components and
+                            // manipulate Lampa's DOM, not native SwiftUI views.
+                            // The shared runtime is the compatible interactive path.
+                            Divider().padding(.leading, 54)
+                            Button(action: openInLampa) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "puzzlepiece.extension.fill")
+                                        .foregroundColor(.blue)
+                                        .frame(width: 28)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Открыть через плагины Lampa")
+                                            .font(.headline).foregroundColor(.primary)
+                                        Text("Оригинальные источники, меню, настройки и обработчики")
+                                            .font(.caption).foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").foregroundColor(.secondary)
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .accessibilityIdentifier("openWithLampaPluginsButton")
                             if item.canonicalType == "tv" {
                                 Divider().padding(.leading, 54)
                                 Button(action: { showEpisodes = true }) {

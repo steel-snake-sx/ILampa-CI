@@ -365,20 +365,27 @@
         return intent;
     }
 
-    function capturePlayerSelection() {
-        // Even an unowned resolver callback must not borrow a newer trusted dispatch.
+    function capturePlayerSelection(data) {
+        // Preserve the original Online Mod attribution rules. Other plugin
+        // components may render their own .selector rows instead of .online.
+        // Only a real gesture inside the selected row can authorize playback.
         if (resolverScope) return resolverScope.intent;
-        var row = eligibleDispatch('.online.selector');
+        var row = eligibleDispatch('.selector');
         if (!row || isOnlineFolder(row)) return null;
         var identity = activityIdentity();
         var active = typeof Lampa !== 'undefined' && Lampa.Activity.active();
         var rowData = selectedOnlineModRow(trustedDispatch.target);
         if (identity && identity.mediaType === 'tv') {
-            // Only verified rendered source metadata identifies a selected episode. Other
-            // components must not silently inherit Activity's initial native episode either.
-            if (!rowData || !rowData.hasEpisode) return null;
-            identity.season = rowData.season;
-            identity.episode = rowData.episode;
+            if (rowData && rowData.hasEpisode) {
+                identity.season = rowData.season;
+                identity.episode = rowData.episode;
+            } else if (data && Number.isInteger(data.season) && Number.isInteger(data.episode) &&
+                       data.season > 0 && data.episode > 0) {
+                // Generic providers may supply exact episode data directly in
+                // Player.create; never infer it from the card's default episode.
+                identity.season = data.season;
+                identity.episode = data.episode;
+            } else return null;
         }
         if (rowData && rowData.translateVoice) trustedDispatch.translateVoice = rowData.translateVoice;
         return beginSelection(identity, active && active.component || 'lampa_player', 'lampa_player_create');
@@ -394,7 +401,7 @@
             if (current && intent.id && (String(current.id) !== String(intent.id) ||
                 current.canonicalId !== intent.canonicalId || current.mediaType !== intent.mediaType)) return false;
         }
-        if (activeSearchContext) {
+        if (activeSearchContext && intent.selectionContext === 'headless_native_bridge') {
             if (intent.canonicalId && intent.canonicalId !== activeSearchContext.canonicalId) return false;
             if (intent.selectionContext === 'headless_native_bridge' && activeSearchContext.mediaType === 'tv') {
                 if (intent.season != null && activeSearchContext.season != null && intent.season !== activeSearchContext.season) return false;
@@ -953,7 +960,7 @@
                 // A pending intent is not callback provenance. In particular, a
                 // null-intent Reguest callback or an unadapted timer must not borrow
                 // a newer selection (whose episode/card may be omitted by Player).
-                var intent = capturePlayerSelection();
+                var intent = capturePlayerSelection(data);
                 if (!intent || pendingSelection !== intent) return;
                 var card = data.movie || data.card;
                 if (card && (String(card.id) !== String(intent.id) ||

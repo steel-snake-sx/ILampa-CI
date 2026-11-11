@@ -201,6 +201,31 @@ test('pre-ready search is structured, queues no retry, and becomes ready only on
     assert.equal(r.search().success, true);
 });
 
+test('generic plugin component selected by a trusted gesture reaches native playback', () => {
+    const r = runtime(); r.show(); r.search();
+    r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',
+        mediaType: 'movie', canonicalId: 'urn:media:tmdb:movie:550',
+        movie: { id: 550, media_type: 'movie' } });
+    const pluginRow = element('generic');
+    pluginRow.classes.delete('online');
+    r.dispatch(pluginRow, () => r.play({
+        url: 'https://stream.test/filmix.m3u8', movie: { id: 550, media_type: 'movie' }
+    }));
+    assert.equal(r.received('lampaSelection').length, 1);
+    assert.equal(r.received('lampaNative').length, 1);
+    assert.equal(r.received('lampaNative')[0].url, 'https://stream.test/filmix.m3u8');
+    assert.equal(r.received('lampaNative')[0].pluginId, 'online_fxapi');
+});
+
+test('generic plugin without a user gesture cannot start playback', () => {
+    const r = runtime(); r.show(); r.search();
+    r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',
+        mediaType: 'movie', canonicalId: 'urn:media:tmdb:movie:550',
+        movie: { id: 550, media_type: 'movie' } });
+    assert.equal(r.play({ url: 'https://stream.test/unsolicited' }), true);
+    assert.equal(r.received('lampaNative').length, 0);
+});
+
 test('visible pre-ready playback cannot create selection intent or start native media', () => {
     const r = runtime({ ready: false }); r.show();
     r.context.Lampa.Activity.push({ component: 'online_mod', mediaType: 'movie',
