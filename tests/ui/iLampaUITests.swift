@@ -525,7 +525,7 @@ final class iLampaUITests: XCTestCase {
         let settings = app.buttons["playerSettingsButton"]
         XCTAssertTrue(settings.waitForExistence(timeout: 15))
         let hidden = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "hittable == false"), object: settings
+            predicate: NSPredicate(format: "exists == false"), object: settings
         )
         XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 12), .completed,
                        "Extra actions should fade without changing AVKit's viewport")
@@ -543,6 +543,9 @@ final class iLampaUITests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).tap()
         XCTAssertTrue(settings.isHittable, "Repeated video tap must not hide settings")
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Параметры потока"].waitForExistence(timeout: 5),
+                      "Revealed settings must respond to a real tap, not merely exist in accessibility")
     }
 
     func testPlayerSeekingPauseResumeAndReopen() throws {

@@ -222,6 +222,7 @@ struct ContentView: View {
                     }
                     .opacity(playerActionsVisible ? 1 : 0)
                     .allowsHitTesting(playerActionsVisible)
+                    .accessibilityHidden(!playerActionsVisible)
                     .animation(.easeInOut(duration: 0.22), value: playerActionsVisible)
                     Spacer(minLength: 0)
                 }

@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
-const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n');
 const sources = path.join(root, 'iLampa', 'Sources');
 
 function swiftFiles(dir) {

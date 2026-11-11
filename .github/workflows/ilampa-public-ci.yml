@@ -51,6 +51,7 @@ jobs:
           node tests/unit/test_suite_master.js
           node tests/unit/test_source_integrity.js
           node tests/unit/test_bridge_runtime.js
+          node tests/unit/test_sample_source_lifecycle.js
           node tests/unit/test_plugin_lab_probe.js
           python3 tests/unit/test_plugin_lab_archive.py
       - name: Install pinned ByLampa core

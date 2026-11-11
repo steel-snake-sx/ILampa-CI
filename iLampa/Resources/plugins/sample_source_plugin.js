@@ -109,6 +109,12 @@
             return files.render();
         };
 
+        // Activity mounts render() after create(); the return value of create()
+        // is ignored by both the original Lampa and ByLampa cores.
+        this.render = function () {
+            return files.render();
+        };
+
         this.start = function () {
             // Focus first item
             if (window.$) {
