@@ -227,6 +227,12 @@ struct ContentView: View {
                 }
             }
             .background(Color.black.ignoresSafeArea())
+            // Watch the entire composed player presentation as well as
+            // AVKit's internal view. An AVKit gesture may be handled by an
+            // overlay sibling rather than NativePlayerView itself.
+            .simultaneousGesture(TapGesture().onEnded {
+                showPlayerActionsTemporarily()
+            })
             .onAppear { showPlayerActionsTemporarily() }
             .alert("Следующая серия недоступна", isPresented: $nextEpisodeUnavailable) {
                 Button("Понятно", role: .cancel) {}
@@ -406,6 +412,7 @@ struct ContentView: View {
     /// Read the actual AVPlayer clock before replacing an item. The journal is
     /// only updated periodically and can lag several seconds behind user seeking.
     private func showPlayerActionsTemporarily() {
+        print("[PlayerGesture] showing auxiliary actions (wasVisible=\(playerActionsVisible))")
         hidePlayerActionsTask?.cancel()
         playerActionsVisible = true
         hidePlayerActionsTask = Task { @MainActor in
