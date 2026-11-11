@@ -28,6 +28,17 @@ final class PluginLabTests: XCTestCase {
         XCTAssertTrue(inventory.contains { $0.url.contains("e.js") }, "e.js must be present in discovery")
     }
 
+    func testPilotShikimoriSeedUsesLivePublisherPath() {
+        let inventory = PluginLabDiscovery.shared.discoverPlugins()
+        XCTAssertFalse(inventory.contains {
+            $0.origin == .catalog &&
+            $0.url == "https://lampame.github.io/main/shikimori.js"
+        }, "Diagnostic seeds must not repeatedly probe the known HTTP 404 URL")
+        XCTAssertTrue(inventory.contains {
+            $0.url == "https://lampame.github.io/main/Shikimori/Shikimori.js"
+        }, "Shikimori should be diagnosed from the publisher's current script path")
+    }
+
     func testStableIdGeneration() {
         let id1 = PluginLabItem.makeStableId(url: "https://tsynik.github.io/lampa/e.js", name: "e.js (Меню выхода)")
         XCTAssertFalse(id1.isEmpty)

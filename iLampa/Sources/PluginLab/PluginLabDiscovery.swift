@@ -129,7 +129,9 @@ final class PluginLabDiscovery {
         // 5. Fallback Pilot Catalog Seed (for guaranteed variety if network is offline)
         let pilotSeeds: [(name: String, cat: String, url: String)] = [
             ("Head filter", "settings / UI", "https://and7ey.github.io/lampa/head_filter.js"),
-            ("Shikimori catalog", "catalog / metadata", "https://lampame.github.io/main/shikimori.js"),
+            // The old flat main/shikimori.js endpoint is HTTP 404; the publisher
+            // moved the real script to its Shikimori/ directory.
+            ("Shikimori catalog", "catalog / metadata", "https://lampame.github.io/main/Shikimori/Shikimori.js"),
             ("Additional categories", "catalog / navigation", "https://lampame.github.io/main/nc/nc.js"),
             ("Online Mod", "source", "https://nb557.github.io/plugins/online_mod.js"),
             ("CUB rating", "metadata", "https://plugin.rootu.top/cub-rating.js"),
