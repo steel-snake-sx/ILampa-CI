@@ -146,11 +146,14 @@ jobs:
           test -s build/device-diagnostic/iLampa-unsigned.ipa
           shasum -a 256 build/device-diagnostic/iLampa-unsigned.ipa | tee build/device-diagnostic/ipa.sha256
           git rev-parse HEAD | tee build/device-diagnostic/commit.txt
+          BUILD=$( /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' build/device-diagnostic/iLampa.xcarchive/Products/Applications/iLampa.app/Info.plist )
+          cp build/device-diagnostic/iLampa-unsigned.ipa "build/device-diagnostic/ILampa-2.3.0-C-Recovery-${BUILD}.ipa"
       - name: Upload verified IPA and evidence
         uses: actions/upload-artifact@v4
         with:
           name: ilampa-ipa-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            build/device-diagnostic/ILampa-2.3.0-C-Recovery-*.ipa
             build/device-diagnostic/iLampa-unsigned.ipa
             build/device-diagnostic/ipa.sha256
             build/device-diagnostic/commit.txt

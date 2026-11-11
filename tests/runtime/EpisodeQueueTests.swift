@@ -118,6 +118,59 @@ final class EpisodeQueueTests: XCTestCase {
         ))
     }
 
+    func testRealBridgePayloadDeferredResolutionAndSourceIdentity() throws {
+        // A realistic on-wire payload: runtime=lampa_core, provider=online_mod, next URL is a JS function.
+        let raw = """
+        {"action":"play","url":"https://stream.example/s01e01.m3u8","title":"Example",
+         "canonicalId":"urn:media:tmdb:tv:42","mediaType":"tv","season":1,"episode":1,
+         "plugin":"online_mod","pluginId":"online_mod","providerId":"online_mod",
+         "runtimeOrigin":"lampa_core","requestId":"document-A:3","playlistId":"document-A:3",
+         "currentStudio":"Studio Dub","isDiagnostic":false,
+         "playlist":[
+           {"index":0,"itemId":"document-A:3:0","url":"https://stream.example/s01e01.m3u8",
+            "seasonNumber":1,"episodeNumber":1,"title":"Episode 1","deferred":false},
+           {"index":1,"itemId":"document-A:3:1","url":"","seasonNumber":1,
+            "episodeNumber":2,"title":"Episode 2","deferred":true}
+         ]}
+        """
+        let playing = try JSONDecoder().decode(PlayPayload.self, from: Data(raw.utf8))
+        XCTAssertEqual(playing.runtimeOrigin, "lampa_core")
+        XCTAssertEqual(playing.providerId, "online_mod")
+        XCTAssertEqual(playing.playlistId, playing.requestId)
+        guard case let .available(next) = EpisodeQueue.resolveNextEpisode(for: playing) else {
+            return XCTFail("Deferred episode should be retained for plugin resolution")
+        }
+        XCTAssertEqual(next.itemId, "document-A:3:1")
+        XCTAssertTrue(next.deferred)
+        func source(_ id: String, _ provider: String, _ studio: String) -> ResolvedMediaSource {
+            ResolvedMediaSource(id: id, providerName: provider, title: "Episode 2",
+                quality: "720p", studioId: studio, studioName: studio,
+                streamUrl: "https://stream.example/s01e02.m3u8", isHls: true,
+                container: "m3u8", season: 1, episode: 2, providerId: provider,
+                canonicalMediaId: "urn:media:tmdb:tv:42")
+        }
+        let candidates = [source("other-provider", "anilibria", "Studio Dub"),
+                          source("wrong-voice", "online_mod", "Different Dub"),
+                          source("same-provider-and-voice", "online_mod", "Studio Dub")]
+        XCTAssertEqual(EpisodeQueue.chooseNextSource(from: candidates, previous: playing,
+            canonicalId: "urn:media:tmdb:tv:42", season: 1, episode: 2)?.id,
+            "same-provider-and-voice")
+    }
+
+    func testDeferredURLWithoutStableJSItemIdentifierFailsClosed() {
+        let entries = [
+            PlaylistItem(index: 0, seasonNumber: 1, episodeNumber: 1,
+                         title: "Episode 1", url: "https://stream.example/1.mp4"),
+            PlaylistItem(index: 1, seasonNumber: 1, episodeNumber: 2,
+                         title: "Episode 2", url: "", deferred: true)
+        ]
+        let payload = PlayPayload(url: entries[0].url, mediaType: "tv",
+                                  season: 1, episode: 1, playlist: entries)
+        guard case .unavailable = EpisodeQueue.resolveNextEpisode(for: payload) else {
+            return XCTFail("Do not invent a callback when itemId is missing")
+        }
+    }
+
     func testNativeCatalogIdentitySurvivesPayloadSerialization() throws {
         let item = MediaItem(id: 42, title: nil, name: "Series", originalTitle: nil,
             originalName: nil, overview: nil, posterPath: nil, backdropPath: nil,
