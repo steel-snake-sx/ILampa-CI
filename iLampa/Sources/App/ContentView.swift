@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var nextEpisodeUnavailable = false
     @State private var isResolvingNextEpisode = false
     @State private var nextEpisodeResolutionTask: Task<Void, Never>?
+    @State private var didScheduleRealPluginUITest = false
     @State private var playerActionsVisible = true
     @State private var hidePlayerActionsTask: Task<Void, Never>?
 
@@ -254,11 +255,72 @@ struct ContentView: View {
                 self.activePayload = active
             }
             let args = ProcessInfo.processInfo.arguments
+            // CI-only, controlled source fixture. Exercises the production
+            // PluginManager -> real Lampa Activity -> trusted DOM click ->
+            // native AVPlayer pipeline without substituting JS callbacks.
+            if args.contains("--uitesting") && args.contains("--test-real-plugin-selection") &&
+                !didScheduleRealPluginUITest {
+                didScheduleRealPluginUITest = true
+                Task { @MainActor in
+                    await installAndPresentRealPluginUITestFixture()
+                }
+            }
             if args.contains("--test-hls") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     self.launchTestHlsStream()
                 }
             }
+        }
+    }
+
+    private func installAndPresentRealPluginUITestFixture() async {
+        let bundle = Bundle.main
+        guard let path = bundle.url(forResource: "sample_source_plugin", withExtension: "js", subdirectory: "plugins") ??
+                bundle.url(forResource: "sample_source_plugin", withExtension: "js"),
+              let script = try? String(contentsOf: path, encoding: .utf8) else {
+            print("[PluginE2E] Missing bundled sample source plugin")
+            return
+        }
+        let url = "https://fixture.invalid/ilampa-ci-real-plugin-ui.js"
+        let manager = PluginManager.shared
+        manager.installPreparedScript(script, url: url, name: "iLampa real UI integration fixture")
+        guard let record = manager.installedPlugins.first(where: { $0.urlString == url }),
+              let hash = manager.cachedScriptSHA256(for: url),
+              manager.approveCachedScript(pluginID: record.id, expectedSHA256: hash) else {
+            print("[PluginE2E] Could not activate approved plugin fixture")
+            return
+        }
+        let host = LampaHeadlessHost.shared
+        for _ in 0..<160 {
+            guard !Task.isCancelled else { return }
+            if host.isAppReady && host.runningPlugins.contains(url) { break }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        guard host.isAppReady && host.runningPlugins.contains(url) else {
+            print("[PluginE2E] Real Lampa runtime did not activate fixture")
+            return
+        }
+        selectedTab = 4
+        try? await Task.sleep(for: .milliseconds(450))
+        // Use the same Activity.push navigation path a community plugin
+        // invokes. The user-driven WKWebView tap must authorize playback.
+        let navigation = """
+        (function() {
+          if (!window.Lampa || !Lampa.Component.get('sample_source')) return false;
+          Lampa.Activity.push({
+            url:'', component:'sample_source', title:'iLampa Plugin E2E',
+            source:'tmdb', mediaType:'movie',
+            movie:{ id:550, title:'iLampa Plugin E2E', original_title:'iLampa Plugin E2E',
+                    source:'tmdb', media_type:'movie' }
+          });
+          return true;
+        })();
+        """
+        do {
+            let result = try await host.webView?.evaluateJavaScript(navigation)
+            print("[PluginE2E] Pushed real plugin UI: \(String(describing: result))")
+        } catch {
+            print("[PluginE2E] Plugin UI navigation failed: \(error.localizedDescription)")
         }
     }
 

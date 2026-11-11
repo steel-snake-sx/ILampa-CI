@@ -43,6 +43,27 @@ final class LampaRuntimePresentationTests: XCTestCase {
         close.tap()
         XCTAssertTrue(open.waitForExistence(timeout: 5))
     }
+    func testRealPluginDOMClickOpensNativePlayer() {
+        let app = XCUIApplication()
+        continueAfterFailure = false
+        app.launchArguments = ["--uitesting", "--test-real-plugin-selection"]
+        app.launch()
+
+        let lampa = app.tabBars.buttons["Lampa"]
+        XCTAssertTrue(lampa.waitForExistence(timeout: 15))
+        let source = app.staticTexts["Apple Test Stream (BipBop 1080p)"]
+        XCTAssertTrue(source.waitForExistence(timeout: 65),
+            "A real plugin component must create source choices in the visible Lampa DOM")
+        if !source.isHittable {
+            app.webViews.firstMatch.swipeUp()
+        }
+        XCTAssertTrue(source.isHittable, "The plugin stream must be tappable in WebKit")
+        source.tap()
+        let player = app.buttons["playerSettingsButton"]
+        XCTAssertTrue(player.waitForExistence(timeout: 20),
+            "A real trusted plugin row tap must reach AVPlayer, not stop at Component.add")
+    }
+
     func testLampaIsAnInteractiveFirstClassTab() {
         let app = XCUIApplication()
         continueAfterFailure = false
