@@ -41,6 +41,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned ByLampa core
+        run: python3 scripts/prepare-bylampa-native.py
       - name: Execute real local preflight checks
         shell: bash
         run: |
@@ -61,6 +63,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Install pinned ByLampa core
+        run: python3 scripts/prepare-bylampa-native.py
       - name: Generate Xcode project
         shell: bash
         run: |
@@ -131,6 +135,8 @@ jobs:
       ILAMPA_RELEASE_MINIMUM_BUILD: '3000'
     steps:
       - uses: actions/checkout@v4
+      - name: Install pinned ByLampa core
+        run: python3 scripts/prepare-bylampa-native.py
       - name: Show Xcode version
         run: xcodebuild -version
       - name: Install XcodeGen and build unsigned IPA
@@ -146,11 +152,14 @@ jobs:
           test -s build/device-diagnostic/iLampa-unsigned.ipa
           shasum -a 256 build/device-diagnostic/iLampa-unsigned.ipa | tee build/device-diagnostic/ipa.sha256
           git rev-parse HEAD | tee build/device-diagnostic/commit.txt
+          BUILD=$( /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' build/device-diagnostic/iLampa.xcarchive/Products/Applications/iLampa.app/Info.plist )
+          cp build/device-diagnostic/iLampa-unsigned.ipa "build/device-diagnostic/ILampa-2.3.0-A-ByLampa-${BUILD}.ipa"
       - name: Upload verified IPA and evidence
         uses: actions/upload-artifact@v4
         with:
           name: ilampa-ipa-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            build/device-diagnostic/ILampa-2.3.0-A-ByLampa-*.ipa
             build/device-diagnostic/iLampa-unsigned.ipa
             build/device-diagnostic/ipa.sha256
             build/device-diagnostic/commit.txt

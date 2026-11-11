@@ -9,8 +9,8 @@ settings:
   base:
     PRODUCT_NAME: "iLampa"
     PRODUCT_BUNDLE_IDENTIFIER: "com.steelsnake.ilampa"
-    MARKETING_VERSION: "2.2.1"
-    CURRENT_PROJECT_VERSION: "2020"
+    MARKETING_VERSION: "2.3.0"
+    CURRENT_PROJECT_VERSION: "3000"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1,2"
     CODE_SIGNING_ALLOWED: "NO"
@@ -40,8 +40,8 @@ targets:
         CFBundleName: "iLampa"
         CFBundleExecutable: "iLampa"
         CFBundleIdentifier: "com.steelsnake.ilampa"
-        CFBundleShortVersionString: "2.2.1"
-        CFBundleVersion: "2020"
+        CFBundleShortVersionString: "2.3.0"
+        CFBundleVersion: "3000"
         ILAMPA_GIT_COMMIT: ""
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
