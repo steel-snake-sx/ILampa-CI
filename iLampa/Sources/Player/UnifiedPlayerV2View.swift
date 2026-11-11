@@ -68,7 +68,7 @@ private final class PlayerV2State: NSObject, ObservableObject, AVPictureInPictur
 
     func attachLayer(_ layer: AVPlayerLayer) {
         if pipController == nil && AVPictureInPictureController.isPictureInPictureSupported() {
-            let controller = AVPictureInPictureController(playerLayer: layer)
+            guard let controller = AVPictureInPictureController(playerLayer: layer) else { return }
             controller.delegate = self
             pipController = controller
         }
@@ -210,15 +210,21 @@ private final class PlayerV2State: NSObject, ObservableObject, AVPictureInPictur
         pipController.startPictureInPicture()
     }
 
-    func pictureInPictureControllerDidStartPictureInPicture(_ controller: AVPictureInPictureController) {
-        isPictureInPictureActive = true
-        PlayerPlaybackController.shared.retainPictureInPicture(self, owner: owner)
+    nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ controller: AVPictureInPictureController) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.isPictureInPictureActive = true
+            PlayerPlaybackController.shared.retainPictureInPicture(self, owner: self.owner)
+        }
     }
 
-    func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
-        isPictureInPictureActive = false
-        PlayerPlaybackController.shared.releasePictureInPicture(owner: owner)
-        if !surfaceVisible { teardown() }
+    nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.isPictureInPictureActive = false
+            PlayerPlaybackController.shared.releasePictureInPicture(owner: self.owner)
+            if !self.surfaceVisible { self.teardown() }
+        }
     }
 
     func surfaceDisappeared() {
