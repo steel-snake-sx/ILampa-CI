@@ -102,12 +102,15 @@ struct PlaylistItem: Identifiable, Codable, Hashable {
     let url: String
     let duration: Double?
     let timecode: Double?
+    // A deferred URL remains owned by the JS plugin, keyed to the original selection.
+    let itemId: String?
+    let deferred: Bool
 
     enum CodingKeys: String, CodingKey {
-        case index, seasonNumber, episodeNumber, title, url, duration, timecode
+        case index, seasonNumber, episodeNumber, title, url, duration, timecode, itemId, deferred
     }
 
-    init(index: Int, seasonNumber: Int? = nil, episodeNumber: Int? = nil, title: String, url: String, duration: Double? = nil, timecode: Double? = nil) {
+    init(index: Int, seasonNumber: Int? = nil, episodeNumber: Int? = nil, title: String, url: String, duration: Double? = nil, timecode: Double? = nil, itemId: String? = nil, deferred: Bool = false) {
         self.index = index
         self.seasonNumber = seasonNumber
         self.episodeNumber = episodeNumber
@@ -115,6 +118,8 @@ struct PlaylistItem: Identifiable, Codable, Hashable {
         self.url = url
         self.duration = duration
         self.timecode = timecode
+        self.itemId = itemId
+        self.deferred = deferred
     }
 
     init(from decoder: Decoder) throws {
@@ -145,6 +150,8 @@ struct PlaylistItem: Identifiable, Codable, Hashable {
 
         self.title = (try? container.decodeIfPresent(String.self, forKey: .title)) ?? ""
         self.url = (try? container.decodeIfPresent(String.self, forKey: .url)) ?? ""
+        self.itemId = try? container.decodeIfPresent(String.self, forKey: .itemId)
+        self.deferred = (try? container.decodeIfPresent(Bool.self, forKey: .deferred)) ?? false
 
         if let d = try? container.decodeIfPresent(Double.self, forKey: .duration) {
             self.duration = d
@@ -193,9 +200,13 @@ enum EpisodeQueue {
         guard index + 1 < playlist.count else { return .lastEpisode }
 
         let candidate = playlist[index + 1]
-        guard let url = URL(string: candidate.url),
-              ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
-              url.host != nil else { return .unavailable }
+        if !candidate.deferred {
+            guard let url = URL(string: candidate.url),
+                  ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+                  url.host != nil else { return .unavailable }
+        } else if candidate.itemId == nil {
+            return .unavailable
+        }
 
         if let current = payload.episode, let upcoming = candidate.episodeNumber {
             if let season = payload.season, let upcomingSeason = candidate.seasonNumber {
@@ -219,12 +230,12 @@ enum EpisodeQueue {
         let sameProvider = candidates.filter { source in
             guard source.canonicalMediaId == canonicalId,
                   source.season == season, source.episode == episode else { return false }
-            if let preferred = previous.plugin {
-                let normalized = preferred.lowercased()
-                if normalized == source.providerId.lowercased() { return true }
-                if normalized.contains("online") && source.providerId == "online_mod" { return true }
+            // Runtime identity (lampa_core) is not a source provider.
+            if let preferred = previous.providerId ?? (previous.plugin == "lampa_core" ? nil : previous.plugin),
+               !preferred.isEmpty {
+                return preferred.caseInsensitiveCompare(source.providerId) == .orderedSame
             }
-            return previous.pluginId == source.sourceKey
+            return previous.pluginId == source.sourceKey || previous.pluginId == source.providerId
         }
         let sameVoice = sameProvider.filter { source in
             let matchesId = previous.currentStudio.map {
@@ -289,6 +300,9 @@ struct PlayPayload: Identifiable, Codable, Equatable {
     // Attribution and plugin source identity
     var plugin: String?
     var pluginId: String?
+    var runtimeOrigin: String?
+    var providerId: String?
+    var playlistId: String?
     var requestId: String?
     var selectionContext: String?
     // Assigned only by native source resolution; never decoded from bridge input.
@@ -298,7 +312,7 @@ struct PlayPayload: Identifiable, Codable, Equatable {
         case action, url, title, subtitle, time, duration, hash
         case canonicalId, mediaType, season, episode, currentQuality, currentStudio, currentStudioName
         case availableQualities, availableStudios, availableSubtitles, playlist, mediaLookupItem, customHeaders, isDiagnostic
-        case plugin, pluginId, requestId, selectionContext
+        case plugin, pluginId, runtimeOrigin, providerId, playlistId, requestId, selectionContext
     }
 
     init(
@@ -326,7 +340,10 @@ struct PlayPayload: Identifiable, Codable, Equatable {
         plugin: String? = nil,
         pluginId: String? = nil,
         requestId: String? = nil,
-        selectionContext: String? = nil
+        selectionContext: String? = nil,
+        runtimeOrigin: String? = nil,
+        providerId: String? = nil,
+        playlistId: String? = nil
     ) {
         self.action = action
         self.url = url
@@ -351,6 +368,9 @@ struct PlayPayload: Identifiable, Codable, Equatable {
         self.isDiagnostic = isDiagnostic
         self.plugin = plugin
         self.pluginId = pluginId
+        self.runtimeOrigin = runtimeOrigin
+        self.providerId = providerId
+        self.playlistId = playlistId
         self.requestId = requestId
         self.selectionContext = selectionContext
     }
@@ -429,6 +449,9 @@ struct PlayPayload: Identifiable, Codable, Equatable {
 
         self.plugin = try? container.decodeIfPresent(String.self, forKey: .plugin)
         self.pluginId = try? container.decodeIfPresent(String.self, forKey: .pluginId)
+        self.runtimeOrigin = try? container.decodeIfPresent(String.self, forKey: .runtimeOrigin)
+        self.providerId = try? container.decodeIfPresent(String.self, forKey: .providerId)
+        self.playlistId = try? container.decodeIfPresent(String.self, forKey: .playlistId)
         self.requestId = try? container.decodeIfPresent(String.self, forKey: .requestId)
         self.selectionContext = try? container.decodeIfPresent(String.self, forKey: .selectionContext)
     }
