@@ -114,6 +114,10 @@ struct ContentView: View {
                     onControlsInteraction: { togglePlayerActionsOnTap() }
                 )
                 .ignoresSafeArea()
+                // UIKit can consume a video tap for its own transport overlay.
+                // Simultaneously observing it here makes our auxiliary actions
+                // reliably reappear without blocking AVKit's native controls.
+                .simultaneousGesture(TapGesture().onEnded { showPlayerActionsTemporarily() })
 
 
                 // Only iLampa-specific actions are overlaid on the video.
