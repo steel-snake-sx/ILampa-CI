@@ -23,6 +23,21 @@ final class PluginCatalogStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.entries[0].provenance.first?.registryID, "lampaplugins-store")
     }
 
+    func testRetiredShikimoriRegistryURLUsesPublisherExistingMovedScript() throws {
+        let data = Data("""
+        {"results":[{"title":"Аниме","results":[
+            {"name":"Shikimori catalog","link":"https://lampame.github.io/main/shikimori.js"},
+            {"name":"Other","link":"https://example.test/plugin.js"}
+        ]}]}
+        """.utf8)
+        let snapshot = try PluginCatalogStore.parse(data)
+        XCTAssertEqual(snapshot.entries.count, 2)
+        XCTAssertEqual(snapshot.entries[0].sourceURL.absoluteString,
+            "https://lampame.github.io/main/Shikimori/Shikimori.js")
+        XCTAssertEqual(snapshot.entries[0].provenance.first?.registryID, "lampaplugins-store")
+        XCTAssertEqual(snapshot.entries[1].sourceURL.absoluteString, "https://example.test/plugin.js")
+    }
+
     func testEmptyOrOversizedRegistryFailsClosed() {
         XCTAssertThrowsError(try PluginCatalogStore.parse(Data("{\"results\":[]}".utf8)))
         XCTAssertThrowsError(try PluginCatalogStore.parse(Data(repeating: 0, count: 2_000_001)))

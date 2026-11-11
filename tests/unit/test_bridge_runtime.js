@@ -211,6 +211,45 @@ test('original Lampa Activity opens the selected installed plugin component, not
     assert.equal(r.received('lampaNative').length, 0);
 });
 
+test('Filmix-style series playback without season and episode is explicitly unidentified', () => {
+    const r = runtime(); r.show();
+    r.search({ id: 1399, title: 'Show', mediaType: 'tv',
+        canonicalId: 'urn:media:tmdb:tv:1399', season: 1, episode: 1 });
+    r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb', mediaType: 'tv',
+        canonicalId: 'urn:media:tmdb:tv:1399', season: 1, episode: 1,
+        movie: { id: 1399, media_type: 'tv', name: 'Show' } });
+    const filmixRow = element('filmix');
+    filmixRow.classes.delete('online');
+    filmixRow.classes.add('online-prestige');
+    filmixRow.classes.add('online-prestige--full');
+    r.dispatch(filmixRow, () => r.play({
+        url: 'https://stream.test/filmix-series.m3u8', title: 'Episode 7',
+        timeline: { time: 120, duration: 2400, hash: 'filmix-episode-7' }
+    }));
+    const selections = r.received('lampaSelection');
+    const streams = r.received('lampaNative');
+    assert.equal(selections.length, 1);
+    assert.equal(streams.length, 1);
+    assert.equal(streams[0].url, 'https://stream.test/filmix-series.m3u8');
+    assert.equal(streams[0].pluginId, 'online_fxapi');
+    assert.equal(streams[0].mediaType, 'tv');
+    assert.equal(streams[0].season, null);
+    assert.equal(streams[0].episode, null);
+    assert.equal(streams[0].time, 120);
+});
+
+test('Filmix folder selectors are navigation, not media selection', () => {
+    const r = runtime(); r.show(); r.search();
+    r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',
+        mediaType: 'movie', canonicalId: 'urn:media:tmdb:movie:550',
+        movie: { id: 550, media_type: 'movie' } });
+    const folderRow = element('filmix');
+    folderRow.classes.delete('online');
+    folderRow.classes.add('online-prestige--folder');
+    r.dispatch(folderRow, () => r.play({ url: 'https://stream.test/ambiguous-folder' }));
+    assert.equal(r.received('lampaNative').length, 0);
+});
+
 test('generic plugin component selected by a trusted gesture reaches native playback', () => {
     const r = runtime(); r.show(); r.search();
     r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',

@@ -17,6 +17,13 @@ private final class CatalogRedirectDelegate: NSObject, URLSessionTaskDelegate {
 final class PluginCatalogStore: ObservableObject {
     static let registryURL = URL(string: "https://raw.githubusercontent.com/lampaplugins/store/main/extensions.json")!
     private static let cacheKey = "ilampa_lampaplugins_catalog_v1"
+    // The public extensions.json still lists the removed flat URL. The
+    // publisher moved this script into its Shikimori/ directory. Match
+    // only this exact retired path; never rewrite arbitrary plugin URLs.
+    private static let knownMovedScripts: [String: String] = [
+        "https://lampame.github.io/main/shikimori.js":
+            "https://lampame.github.io/main/Shikimori/Shikimori.js"
+    ]
 
     struct Snapshot: Codable {
         let entries: [PluginCatalogEntry]
@@ -76,11 +83,13 @@ final class PluginCatalogStore: ObservableObject {
         }
         for category in registry.results {
             for item in category.results {
-                guard let raw = item.link, let url = PluginCatalogEntry.normalizedHTTPSURL(raw),
+                guard let raw = item.link, let originalURL = PluginCatalogEntry.normalizedHTTPSURL(raw),
                       let title = clean(item.name, limit: 160) else {
                     unsupported += 1
                     continue
                 }
+                let url = Self.knownMovedScripts[originalURL.absoluteString]
+                    .flatMap(PluginCatalogEntry.normalizedHTTPSURL) ?? originalURL
                 guard seen.insert(url.absoluteString).inserted else { continue }
                 entries.append(PluginCatalogEntry(sourceURL: url, title: title,
                     author: clean(item.author, limit: 120), description: clean(item.descr, limit: 500),

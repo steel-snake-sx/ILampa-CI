@@ -340,7 +340,13 @@
     // "online selector"; it does not add an online_folder CSS class.
     function isOnlineFolder(target) {
         var data = selectedOnlineModRow(target);
-        return !!(data && data.isFolder) || !!(target && target.classList && target.classList.contains('online_folder'));
+        // Filmix uses .online-prestige--folder.selector rather than
+        // Online Mod's .online_folder. Check the actual selected row even
+        // when the trusted click happened on a nested image or title.
+        var row = target && target.closest && target.closest('.selector');
+        return !!(data && data.isFolder) || !!(row && row.classList &&
+            (row.classList.contains('online_folder') ||
+             row.classList.contains('online-prestige--folder')));
     }
 
     function beginSelection(identity, pluginId, selectionContext) {
@@ -385,6 +391,14 @@
                 // Player.create; never infer it from the card's default episode.
                 identity.season = data.season;
                 identity.episode = data.episode;
+            } else if (active && active.component !== 'online_mod' && active.component !== 'online') {
+                // Third-party source components such as Filmix call
+                // Player.play({title,url,timeline,callback}) without episode
+                // identity. A genuinely tapped media row may play, but we
+                // explicitly erase the native card's default episode so it
+                // is never mistaken for the user's selected episode.
+                identity.season = null;
+                identity.episode = null;
             } else return null;
         }
         if (rowData && rowData.translateVoice) trustedDispatch.translateVoice = rowData.translateVoice;
