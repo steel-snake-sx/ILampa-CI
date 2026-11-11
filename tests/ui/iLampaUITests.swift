@@ -508,11 +508,10 @@ final class iLampaUITests: XCTestCase {
         XCTAssertFalse(app.buttons["closePlayerButton"].exists,
                        "Legacy duplicate X must be removed")
 
-        if settings.isHittable {
-            settings.tap()
-            let done = app.buttons["Готово"]
-            if done.waitForExistence(timeout: 4) { done.tap() }
-        }
+        // This screenshot test verifies presentation and the native viewport.
+        // UI tapping is tested separately by testPlayerAuxiliaryControlsAutoHideAndCanBeRevealed.
+        // Do not tap an optional auto-hiding accessibility element after its
+        // 3-second window expires: XCUITest's AXScrollToVisible may throw.
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "AVKit_Fullscreen_NoBottomToolbar"
         attachment.lifetime = .keepAlways

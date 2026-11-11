@@ -113,6 +113,16 @@ private final class PlayerPlaybackResources {
     }
 }
 
+// Observes the actual presentation window lifecycle. Gestures attached solely
+// to AVPlayerViewController.view can lose to AVKit's internal transparent layers.
+private final class PlayerWindowAttachmentView: UIView {
+    var onWindowChange: ((UIWindow?) -> Void)?
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        onWindowChange?(window)
+    }
+}
+
 // AVPlayerViewController wrapper handling HLS/MP4 playback, PiP, timecodes, metadata, and lifecycle teardown.
 @MainActor
 struct NativePlayerView: UIViewControllerRepresentable {
@@ -140,6 +150,17 @@ struct NativePlayerView: UIViewControllerRepresentable {
         visibilityTap.cancelsTouchesInView = false
         visibilityTap.delegate = context.coordinator
         controller.view.addGestureRecognizer(visibilityTap)
+
+        // An invisible lifecycle witness attaches a simultaneous observer to
+        // the UIWindow once the player actually becomes visible. UIWindow is an
+        // ancestor of AVKit's internal video controls, unlike the SwiftUI layer.
+        let windowWitness = PlayerWindowAttachmentView(frame: .zero)
+        windowWitness.isUserInteractionEnabled = false
+        let coordinator = context.coordinator
+        windowWitness.onWindowChange = { [weak coordinator] window in
+            coordinator?.attachTouchObserver(to: window)
+        }
+        controller.view.addSubview(windowWitness)
 
         guard let videoURL = URL(string: payload.url) else {
             let diag = PlaybackDiagnosis(
@@ -229,6 +250,7 @@ struct NativePlayerView: UIViewControllerRepresentable {
     static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: Coordinator) {
         print("[NativePlayerView] dismantleUIViewController: stopping playback (pipActive=\(coordinator.isPictureInPictureActive))")
         coordinator.isDismantled = true
+        coordinator.attachTouchObserver(to: nil)
         if coordinator.isPictureInPictureActive && !coordinator.isCleanedUp {
             // AVPlayerViewController.delegate is weak; SwiftUI no longer owns this coordinator.
             coordinator.detachedController = uiViewController
@@ -250,6 +272,25 @@ struct NativePlayerView: UIViewControllerRepresentable {
     @MainActor
     class Coordinator: NSObject, AVPlayerViewControllerDelegate, UIGestureRecognizerDelegate {
         var parent: NativePlayerView
+        private weak var observedTouchWindow: UIWindow?
+        private var windowTapGesture: UITapGestureRecognizer?
+
+        func attachTouchObserver(to window: UIWindow?) {
+            guard observedTouchWindow !== window else { return }
+            if let previous = windowTapGesture {
+                observedTouchWindow?.removeGestureRecognizer(previous)
+            }
+            observedTouchWindow = window
+            windowTapGesture = nil
+            guard let window else { return }
+            let tap = UITapGestureRecognizer(target: self,
+                action: #selector(notifyControlsInteraction))
+            tap.cancelsTouchesInView = false
+            tap.delaysTouchesBegan = false
+            tap.delegate = self
+            window.addGestureRecognizer(tap)
+            windowTapGesture = tap
+        }
 
         @objc func notifyControlsInteraction(_ gesture: UITapGestureRecognizer) {
             parent.onControlsInteraction?()
@@ -585,6 +626,7 @@ struct NativePlayerView: UIViewControllerRepresentable {
         }
 
         func cleanup() {
+            attachTouchObserver(to: nil)
             resources.cleanup()
         }
     }
