@@ -26,6 +26,9 @@ def main() -> None:
     if b"Lampa" not in data:
         raise SystemExit("Downloaded distribution is not a Lampa runtime")
     TARGET.write_bytes(data)
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, "scripts/patch-plugins-native-managed.py", str(TARGET)], check=True)
     print(f"ByLampa core installed: commit={COMMIT} git_blob={BLOB} sha256={hashlib.sha256(data).hexdigest()}")
 
 
