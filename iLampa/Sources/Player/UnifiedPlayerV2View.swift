@@ -312,6 +312,7 @@ struct UnifiedPlayerV2View: View {
                             }
                         } label: { Image(systemName: "list.bullet.circle.fill") }
                             .accessibilityLabel("Серии, качество и озвучка")
+                            .accessibilityIdentifier("playerSettingsButton")
                     }
                     .font(.system(size: 23))
                     .padding(.top, 40)

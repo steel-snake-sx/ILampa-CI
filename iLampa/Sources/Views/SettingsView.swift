@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("lampa_instance_url") private var lampaInstanceUrl = "https://bylampa.online"
     @AppStorage("use_local_bundle") private var useLocalBundle = false
     @AppStorage("prefer_native_player") private var preferNativePlayer = true
+    @AppStorage("ilampa_player_v2_enabled") private var playerV2Enabled = true
     @AppStorage("auto_next_episode") private var autoNextEpisode = true
     @AppStorage("auto_next_duration") private var autoNextDuration = 10
     @AppStorage("preferred_quality") private var preferredQuality = "1080p"
@@ -57,6 +58,16 @@ struct SettingsView: View {
                     }
                     .accessibilityLabel(Text("Воспроизведение"))
                     .accessibilityIdentifier("navPlayerOptions")
+
+                    Toggle(isOn: $playerV2Enabled) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Player V2 · эксперимент")
+                            Text("Выключить, чтобы вернуться к прежнему AVKit-плееру")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("togglePlayerV2")
 
                     // 2. Источники (`sources`)
                     NavigationLink(destination: SourcesManagementView(onPlayCustomUrl: onPlayCustomUrl)) {
