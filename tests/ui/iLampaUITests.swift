@@ -36,43 +36,12 @@ final class iLampaUITests: XCTestCase {
         XCTAssertTrue(selector.waitForExistence(timeout: 10))
         XCTAssertTrue(selector.label.contains("Option A"), "Fresh fixture must start before the requested selection")
         selector.tap()
-        // Retained hierarchy: the presented native menu is a CollectionView,
-        // with a finite Cell containing the Option B button. Hit-testing that
-        // button proxy itself throws inside XCTest on this runtime. Target its
-        // real menu cell, scoped by its accessible child, not a screen coordinate.
-        let choice = app.collectionViews.cells.containing(.button, identifier: "Option B").firstMatch
-        let optionReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard choice.exists else { return false }
-            let frame = choice.frame
-            guard !frame.isEmpty, frame.origin.x.isFinite, frame.origin.y.isFinite,
-                  frame.width.isFinite, frame.height.isFinite else { return false }
-            return choice.isHittable
-        }, object: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [optionReady], timeout: 15), .completed,
-                       "No rendered selectable Option B. Hierarchy: \(app.debugDescription)")
-        let menuShot = XCTAttachment(screenshot: app.screenshot())
-        menuShot.name = "LegacySettings_SelectableMenu"
-        menuShot.lifetime = .keepAlways
-        add(menuShot)
-        let menuHierarchy = XCTAttachment(string: app.debugDescription)
-        menuHierarchy.name = "LegacySettings_MenuCellHierarchy"
-        menuHierarchy.lifetime = .keepAlways
-        add(menuHierarchy)
-        // Xcode 26.6 reports this visible menu cell as hittable but its tap()
-        // activation-point proxy becomes infinite (retained screenshot/hierarchy).
-        // Send the native gesture to the center of the verified rendered cell,
-        // relative to its actual window; never guess a screen coordinate or
-        // bypass the selection/callback/Storage assertions below.
-        let renderedCell = choice.frame
-        let menuWindow = app.windows.firstMatch
-        let windowFrame = menuWindow.frame
-        XCTAssertFalse(renderedCell.isEmpty)
-        XCTAssertTrue(renderedCell.minX.isFinite && renderedCell.minY.isFinite
-                      && renderedCell.width.isFinite && renderedCell.height.isFinite)
-        XCTAssertTrue(windowFrame.contains(renderedCell), "Menu selection must be inside the actual app window")
-        menuWindow.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: renderedCell.midX - windowFrame.minX,
-                                 dy: renderedCell.midY - windowFrame.minY)).tap()
+        // A native confirmation dialog exposes actual buttons instead of the
+        // sometimes-infinite AX frames of Xcode 26's menu-cell proxies.
+        let optionB = app.buttons["Option B"]
+        XCTAssertTrue(optionB.waitForExistence(timeout: 15),
+                      "Source's selectable option must be rendered as an accessible button")
+        optionB.tap()
         let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Option B"), object: selector)
         XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 15), .completed, "Selection did not commit")
         let committedShot = XCTAttachment(screenshot: app.screenshot())
@@ -660,8 +629,13 @@ final class iLampaUITests: XCTestCase {
         for _ in 0..<5 where !navPoC.isHittable { app.swipeUp() }
         XCTAssertTrue(navPoC.waitForExistence(timeout: 5), "Developer WebKit tools must be reachable")
         navPoC.tap()
-        XCTAssertTrue(app.navigationBars["Движок WebKit"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Lampa Core"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Режим разработчика"].waitForExistence(timeout: 10),
+                      "Developer tools route must first open the developer tools list")
+        let webKitRow = app.buttons["navWebKitEngine"]
+        XCTAssertTrue(webKitRow.waitForExistence(timeout: 10), "Missing WebKit diagnostics destination")
+        webKitRow.tap()
+        XCTAssertTrue(app.navigationBars["Движок WebKit"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Lampa Core"].waitForExistence(timeout: 10))
     }
 
     func testMediaIdentityAntiCollisionVisionQuest() throws {

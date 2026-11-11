@@ -83,6 +83,7 @@ private struct LegacySettingRow: View {
     @State private var draft: String
     @State private var toggleValue: Bool
     @State private var selectedValue: String
+    @State private var showingChoices = false
 
     init(setting: LegacyPluginSetting, disabled: Bool, change: @escaping (String) -> Void) {
         self.setting = setting
@@ -102,11 +103,29 @@ private struct LegacySettingRow: View {
                     set: { toggleValue = $0; change($0 ? "true" : "false") }
                 ))
             case "select":
-                Picker(setting.name, selection: Binding(
-                    get: { selectedValue }, set: { selectedValue = $0; change($0) }
-                )) {
+                // A native confirmation sheet avoids inaccessible AX cell proxies
+                // reported by iOS 18's menu-picker presentation, and remains fully
+                // operable without changing plugin callback/storage semantics.
+                Button {
+                    showingChoices = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(setting.name)
+                        Spacer()
+                        Text(setting.options.first(where: { $0.value == selectedValue })?.label ?? selectedValue)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .confirmationDialog(setting.name, isPresented: $showingChoices,
+                                    titleVisibility: .visible) {
                     ForEach(setting.options, id: \.value) { option in
-                        Text(option.label).tag(option.value)
+                        Button(option.label) {
+                            selectedValue = option.value
+                            change(option.value)
+                        }
                     }
                 }
             case "input":
