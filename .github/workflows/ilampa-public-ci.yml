@@ -41,8 +41,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Build Original Lampa source with pinned revision
-        run: bash scripts/prepare-upstream-fusion.sh
       - name: Execute real local preflight checks
         shell: bash
         run: |
@@ -55,6 +53,10 @@ jobs:
           node tests/unit/test_bridge_runtime.js
           node tests/unit/test_plugin_lab_probe.js
           python3 tests/unit/test_plugin_lab_archive.py
+      - name: Build Original Lampa source with pinned revision
+        run: bash scripts/prepare-upstream-fusion.sh
+      - name: Check selected candidate runtime syntax
+        run: node --check iLampa/Resources/www/app.min.js
 
   simulator:
     needs: preflight
