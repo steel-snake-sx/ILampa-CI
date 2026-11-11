@@ -27,6 +27,89 @@
     var folderOperation = null;
     var folderRows = typeof WeakMap === 'function' ? new WeakMap() : null;
     var nativeAction = null;
+    // Playlist callbacks belong to this exact document and selected playback session.
+    // Only serializable item descriptors cross into Swift.
+    var activePlaylistSession = null;
+    function isStreamUrl(url) {
+        return typeof url === 'string' && /^https?:\/\//i.test(url) &&
+            !/sylvan\.apple\.com|orangejedi\/aerial|\/videos\/aerial/i.test(url);
+    }
+    function playlistDescriptors(items, requestId) {
+        if (!Array.isArray(items)) return [];
+        return items.map(function (entry, index) {
+            if (!entry || (!isStreamUrl(entry.url) && typeof entry.url !== 'function')) return null;
+            return {
+                index: index,
+                itemId: requestId + ':' + index,
+                deferred: typeof entry.url === 'function',
+                url: isStreamUrl(entry.url) ? entry.url : '',
+                seasonNumber: entry.season == null ? null : entry.season,
+                episodeNumber: entry.episode == null ? index + 1 : entry.episode,
+                title: entry.title || ('Серия ' + (index + 1)),
+                duration: entry.duration || null,
+                timecode: entry.time || null
+            };
+        }).filter(Boolean);
+    }
+    function observeLatePlaylist(player) {
+        if (!player || typeof player.playlist !== 'function' || player.__ilampaPlaylistObserved) return;
+        var original = player.playlist;
+        player.playlist = function (entries) {
+            var result = original.apply(this, arguments);
+            var session = activePlaylistSession;
+            if (!session || !Array.isArray(entries) ||
+                window.__ilampaGeneration !== generation || window.__ilampaDocumentToken !== documentToken ||
+                (resolverScope && resolverScope.intent && resolverScope.intent.requestId !== session.id)) return result;
+            var identity = activityIdentity();
+            if (identity && (identity.canonicalId !== session.canonicalId ||
+                identity.mediaType !== session.mediaType)) return result;
+            session.items = entries.slice();
+            post('lampaPlaylist', {
+                requestId: session.id,
+                playlistId: session.id,
+                playlist: playlistDescriptors(session.items, session.id)
+            });
+            return result;
+        };
+        player.__ilampaPlaylistObserved = true;
+    }
+    function resolvePlaylistItem(requestId, itemId) {
+        var session = activePlaylistSession;
+        if (!session || session.id !== requestId || typeof itemId !== 'string' ||
+            window.__ilampaGeneration !== generation || window.__ilampaDocumentToken !== documentToken)
+            return Promise.resolve({ success: false, error: 'stale-session' });
+        var index = Number(itemId.slice(requestId.length + 1));
+        if (itemId !== requestId + ':' + index || !Number.isInteger(index) || index < 0 ||
+            index >= session.items.length)
+            return Promise.resolve({ success: false, error: 'invalid-playlist-item' });
+        var entry = session.items[index];
+        if (!entry) return Promise.resolve({ success: false, error: 'missing-playlist-item' });
+        if (isStreamUrl(entry.url)) return Promise.resolve({ success: true, url: entry.url });
+        if (typeof entry.url !== 'function')
+            return Promise.resolve({ success: false, error: 'invalid-stream' });
+        return new Promise(function (resolve) {
+            var settled = false;
+            var timer = setTimeout(function () { finish(null, 'resolver-timeout'); }, 12000);
+            function finish(value, reason) {
+                if (settled) return;
+                settled = true;
+                if (typeof clearTimeout === 'function') clearTimeout(timer);
+                if (activePlaylistSession !== session || window.__ilampaGeneration !== generation ||
+                    window.__ilampaDocumentToken !== documentToken)
+                    return resolve({ success: false, error: 'stale-session' });
+                var url = typeof value === 'string' ? value :
+                    value && typeof value.url === 'string' ? value.url : entry.url;
+                resolve(isStreamUrl(url) ? { success: true, url: url } :
+                    { success: false, error: reason || 'deferred-url-unavailable' });
+            }
+            try {
+                var outcome = entry.url(function (value) { finish(value); });
+                if (outcome && typeof outcome.then === 'function')
+                    outcome.then(function (value) { if (value) finish(value); },
+                        function () { finish(null, 'resolver-error'); });
+            } catch (error) { finish(null, 'resolver-error'); }
+        });
+    }
     var nativePrompt = typeof window.prompt === 'function' ? window.prompt.bind(window) : null;
     function executeNativeAction(ticket, action) {
         if (!ticket || ticket.generation !== generation || ticket.documentToken !== documentToken ||
@@ -333,6 +416,7 @@
 
     window.LampaNativeBridge = {
         executeNativeAction: executeNativeAction,
+        resolvePlaylistItem: resolvePlaylistItem,
         changeLegacySetting: changeLegacySetting,
         attachLegacySettingsHook: attachLegacySettingsHook,
         requestMetadata: requestMetadata,
@@ -856,6 +940,7 @@
             var self = this;
             if (this.isPlayerListenerBound) return;
             this.isPlayerListenerBound = true;
+            observeLatePlaylist(Lampa.Player);
             this.log('info', 'Attached native player listener to Lampa.Player');
 
             Lampa.Player.listener.follow('create', function (e) {
@@ -890,22 +975,8 @@
                     hash = data.timeline.hash || '';
                 }
 
-                var playlist = [];
-                if (Array.isArray(data.playlist)) {
-                    playlist = data.playlist.filter(function (it) {
-                        return it && typeof it.url === 'string' && /^https?:\/\//i.test(it.url);
-                    }).map(function (it, idx) {
-                        return {
-                            index: idx,
-                            seasonNumber: it.season || data.season || null,
-                            episodeNumber: it.episode || (idx + 1),
-                            title: it.title || ('Серия ' + (idx + 1)),
-                            url: self.resolveBestUrl(it),
-                            duration: it.duration || null,
-                            timecode: it.time || null
-                        };
-                    });
-                }
+                var sourcePlaylist = Array.isArray(data.playlist) ? data.playlist : [];
+                var playlist = playlistDescriptors(sourcePlaylist, intent.requestId);
 
                 var payload = {
                     action: 'play',
@@ -924,11 +995,20 @@
                     playlist: playlist.length > 0 ? playlist : null,
                     customHeaders: (data.headers && typeof data.headers === 'object') ? snapshot(data.headers) : null,
                     availableSubtitles: Array.isArray(data.subtitles) ? snapshot(data.subtitles) : null,
-                    plugin: 'lampa_core',
+                    plugin: intent.pluginId,
+                    runtimeOrigin: 'lampa_core',
+                    providerId: intent.pluginId,
+                    playlistId: intent.requestId,
                     isDiagnostic: false
                 };
 
-                if (routeSelectedPlayback(payload, intent)) self.activeItem = data;
+                if (routeSelectedPlayback(payload, intent)) {
+                    activePlaylistSession = {
+                        id: intent.requestId, canonicalId: intent.canonicalId, mediaType: intent.mediaType,
+                        items: sourcePlaylist.slice()
+                    };
+                    self.activeItem = data;
+                }
             });
         },
 
