@@ -151,6 +151,26 @@ struct NativePlayerView: UIViewControllerRepresentable {
         visibilityTap.delegate = context.coordinator
         controller.view.addGestureRecognizer(visibilityTap)
 
+        // AVKit installs transparent video/control layers which may intercept
+        // touches before a recognizer attached to controller.view sees them.
+        // Apple's public contentOverlayView is the intended interactive
+        // overlay surface above the video and below transport controls.
+        // Keep touches available to AVKit itself (seek, PiP, pause).
+        if let contentOverlay = controller.contentOverlayView {
+            let touchSurface = UIView(frame: contentOverlay.bounds)
+            touchSurface.backgroundColor = .clear
+            touchSurface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            touchSurface.isUserInteractionEnabled = true
+            let contentTap = UITapGestureRecognizer(
+                target: context.coordinator, action: #selector(Coordinator.notifyControlsInteraction)
+            )
+            contentTap.cancelsTouchesInView = false
+            contentTap.delaysTouchesBegan = false
+            contentTap.delegate = context.coordinator
+            touchSurface.addGestureRecognizer(contentTap)
+            contentOverlay.addSubview(touchSurface)
+        }
+
         // An invisible lifecycle witness attaches a simultaneous observer to
         // the UIWindow once the player actually becomes visible. UIWindow is an
         // ancestor of AVKit's internal video controls, unlike the SwiftUI layer.

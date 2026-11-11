@@ -819,6 +819,17 @@ private struct LampaRuntimeTabView: View {
                 .accessibilityIdentifier("lampaRuntimeTabStatus")
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if ProcessInfo.processInfo.arguments.contains("--uitesting") {
+                Text(host.lastLifecycleMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.white)
+                    .padding(4)
+                    .background(Color.black.opacity(0.75))
+                    .accessibilityIdentifier("lampaTabRuntimeState")
+                    .allowsHitTesting(false)
+            }
+        }
         .onAppear { host.setAttachmentMode(.attachedVisible) }
         .onDisappear { host.setAttachmentMode(.attachedUnobtrusive) }
     }

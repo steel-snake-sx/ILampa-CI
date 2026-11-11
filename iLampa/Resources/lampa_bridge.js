@@ -316,14 +316,21 @@
         var active = typeof Lampa !== 'undefined' && Lampa.Activity && Lampa.Activity.active && Lampa.Activity.active();
         var movie = active && (active.movie || active.card);
         if (!movie || !movie.id) return null;
-        if ((active.source || movie.source) && (active.source || movie.source) !== 'tmdb') return null;
+        // The original Lampa UI can browse CUB and other catalog backends,
+        // not just TMDB. An actual trusted user selection is allowed to use
+        // its active catalog, while headless native discovery still enforces
+        // its separate, exact TMDB resolution context.
+        var source = active.source || movie.source || 'tmdb';
+        if (typeof source !== 'string' || !/^[a-z0-9_-]{1,32}$/i.test(source)) return null;
+        source = source.toLowerCase();
         var mediaType = active.mediaType || movie.mediaType || movie.media_type;
         if (active.mediaType && movie.media_type && active.mediaType !== movie.media_type) return null;
         if (!mediaType) mediaType = movie.first_air_date ? 'tv' : movie.release_date ? 'movie' : null;
         if (mediaType !== 'movie' && mediaType !== 'tv') return null;
         return {
             id: movie.id,
-            canonicalId: active.canonicalId || movie.canonicalId || 'urn:media:tmdb:' + mediaType + ':' + movie.id,
+            canonicalId: active.canonicalId || movie.canonicalId ||
+                'urn:media:' + source + ':' + mediaType + ':' + movie.id,
             mediaType: mediaType,
             season: active.season == null ? null : active.season,
             episode: active.episode == null ? null : active.episode

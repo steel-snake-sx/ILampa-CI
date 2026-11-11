@@ -58,7 +58,20 @@ final class LampaRuntimePresentationTests: XCTestCase {
         XCTAssertTrue(webView.waitForExistence(timeout: 20))
         XCTAssertGreaterThan(webView.frame.width, 300,
             "Plugin DOM must be a visible interactive WebKit surface")
-        // The tab does not need to restart or duplicate the plugin runtime.
-        XCTAssertTrue(app.tabBars.buttons["Настройки"].exists)
+        let state = app.staticTexts["lampaTabRuntimeState"]
+        let ready = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND label BEGINSWITH 'ready generation='"),
+            object: state)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 75), .completed,
+            "Plugin UI must reach actual Lampa JS readiness, not just show an empty WKWebView")
+        let instance = webView.identifier
+        let generation = state.label
+        let settings = app.tabBars.buttons["Настройки"]
+        XCTAssertTrue(settings.exists)
+        settings.tap()
+        tab.tap()
+        XCTAssertTrue(webView.waitForExistence(timeout: 10))
+        XCTAssertEqual(webView.identifier, instance, "Tab switching must reuse the WKWebView")
+        XCTAssertEqual(state.label, generation, "Tab switching must not restart the JS environment")
     }
 }

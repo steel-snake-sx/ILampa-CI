@@ -279,6 +279,32 @@ test('Filmix folder selectors are navigation, not media selection', () => {
     assert.equal(r.received('lampaNative').length, 0);
 });
 
+test('visible CUB and other Lampa catalog playback use source-specific identity', () => {
+    const r = runtime(); r.show();
+    r.context.Lampa.Activity.push({
+        component: 'online_fxapi', source: 'cub', mediaType: 'movie',
+        movie: { id: 4242, title: 'Catalog Film', source: 'cub', media_type: 'movie' }
+    });
+    const row = element('source');
+    row.classes.delete('online');
+    r.dispatch(row, () => r.play({ url: 'https://stream.test/cub-movie.mp4' }));
+    const accepted = r.received('lampaNative');
+    assert.equal(accepted.length, 1);
+    assert.equal(accepted[0].canonicalId, 'urn:media:cub:movie:4242');
+    assert.equal(accepted[0].url, 'https://stream.test/cub-movie.mp4');
+    assert.equal(accepted[0].pluginId, 'online_fxapi');
+});
+
+test('other catalog playback remains rejected without trusted user gesture', () => {
+    const r = runtime(); r.show();
+    r.context.Lampa.Activity.push({
+        component: 'online_fxapi', source: 'cub', mediaType: 'movie',
+        movie: { id: 4242, source: 'cub', media_type: 'movie' }
+    });
+    r.play({ url: 'https://stream.test/unsolicited.mp4' });
+    assert.equal(r.received('lampaNative').length, 0);
+});
+
 test('generic plugin component selected by a trusted gesture reaches native playback', () => {
     const r = runtime(); r.show(); r.search();
     r.context.Lampa.Activity.push({ component: 'online_fxapi', source: 'tmdb',
